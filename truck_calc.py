@@ -3,10 +3,8 @@ from datetime import datetime
 import pandas as pd
 import altair as alt
 
-import streamlit as st
-
 # Set a fixed password (you can move it to st.secrets later)
-CORRECT_PASSWORD = st.secrets["login_password"]
+CORRECT_PASSWORD = "secret123"
 
 # Check login state
 if "logged_in" not in st.session_state:
@@ -407,6 +405,7 @@ elif page_name == "settings":
                 window.location.reload();
                 </script>
             """, unsafe_allow_html=True)
+
 
 
 
