@@ -3,6 +3,14 @@ from datetime import datetime
 import pandas as pd
 import altair as alt
 
+def login():
+    st.title("🔐 Вход")
+    password = st.text_input("Введите пароль:", type="password")
+    if password != "secret123":
+        st.stop()  # Остановить приложение
+
+login()
+
 st.set_page_config(page_title="🚛 Balls Logistics", layout="centered")
 
 # ----------------------- Session State Initialization -----------------------
@@ -385,5 +393,6 @@ elif page_name == "settings":
                 window.location.reload();
                 </script>
             """, unsafe_allow_html=True)
+
 
 
