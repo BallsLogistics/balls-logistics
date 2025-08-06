@@ -1,12 +1,242 @@
+# balls_logistics_app.py
 import streamlit as st
+import os
+import json
 from datetime import datetime
 import pandas as pd
 import altair as alt
-
-
-
+from io import StringIO
 
 st.set_page_config(page_title="🚛 Balls Logistics", layout="centered")
+
+DATA_FILE = "data.json"
+
+# ----------------------- Persistence Functions -----------------------
+
+def save_data():
+    data = {
+        "baseline": st.session_state.baseline,
+        "last_mileage": st.session_state.last_mileage,
+        "total_miles": st.session_state.total_miles,
+        "total_cost": st.session_state.total_cost,
+        "total_gallons": st.session_state.total_gallons,
+        "last_trip_summary": st.session_state.last_trip_summary,
+        "log": st.session_state.log,
+        "expenses": st.session_state.expenses,
+        "earnings": st.session_state.earnings
+    }
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+def load_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r") as f:
+            data = json.load(f)
+        st.session_state.baseline = data.get("baseline")
+        st.session_state.last_mileage = data.get("last_mileage")
+        st.session_state.total_miles = data.get("total_miles", 0.0)
+        st.session_state.total_cost = data.get("total_cost", 0.0)
+        st.session_state.total_gallons = data.get("total_gallons", 0.0)
+        st.session_state.last_trip_summary = data.get("last_trip_summary", {})
+        st.session_state.log = data.get("log", [])
+        st.session_state.expenses = data.get("expenses", [])
+        st.session_state.earnings = data.get("earnings", [])
+
+# ----------------------- Export/Import Functions -----------------------
+
+def export_data():
+    data = {
+        "baseline": st.session_state.baseline,
+        "last_mileage": st.session_state.last_mileage,
+        "total_miles": st.session_state.total_miles,
+        "total_cost": st.session_state.total_cost,
+        "total_gallons": st.session_state.total_gallons,
+        "last_trip_summary": st.session_state.last_trip_summary,
+        "log": st.session_state.log,
+        "expenses": st.session_state.expenses,
+        "earnings": st.session_state.earnings
+    }
+    return json.dumps(data, indent=4).encode("utf-8")
+
+def import_data(uploaded_file):
+    content = uploaded_file.read()
+    data = json.loads(content)
+    st.session_state.baseline = data.get("baseline")
+    st.session_state.last_mileage = data.get("last_mileage")
+    st.session_state.total_miles = data.get("total_miles", 0.0)
+    st.session_state.total_cost = data.get("total_cost", 0.0)
+    st.session_state.total_gallons = data.get("total_gallons", 0.0)
+    st.session_state.last_trip_summary = data.get("last_trip_summary", {})
+    st.session_state.log = data.get("log", [])
+    st.session_state.expenses = data.get("expenses", [])
+    st.session_state.earnings = data.get("earnings", [])
+    save_data()
+    st.success("Data imported and saved successfully!")
+
+# ----------------------- Session State Initialization -----------------------
+def init_session():
+    defaults = {
+        "edit_expense_index": None,
+        "baseline": None,
+        "log": [],
+        "total_miles": 0.0,
+        "total_cost": 0.0,
+        "total_gallons": 0.0,
+        "last_mileage": None,
+        "page": "mileage",
+        "last_trip_summary": {},
+        "expenses": [],
+        "earnings": []
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+    load_data()
+
+init_session()
+
+# ----------------------- Dashboard Summary -----------------------
+st.markdown("### 🌐 Dashboard Overview")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric("Total Miles Driven", f"{st.session_state.total_miles:.2f} mi")
+    st.metric("Total Fuel Used", f"{st.session_state.total_gallons:.2f} gal")
+    st.metric("Total Fuel Cost", f"${st.session_state.total_cost:.2f}")
+
+with col2:
+    total_exp = sum(e["amount"] for e in st.session_state.expenses)
+    total_earn = sum(e["owner"] for e in st.session_state.earnings)
+    net_income = total_earn - total_exp
+    st.metric("Total Expenses", f"${total_exp:.2f}")
+    st.metric("Total Owner Earnings", f"${total_earn:.2f}")
+    st.metric("Net Income", f"${net_income:.2f}")
+
+
+# ----------------------- Backup & Restore UI -----------------------
+st.markdown("### 📁 Backup & Restore")
+
+exported = export_data()
+st.download_button(
+    label="📥 Download Backup JSON",
+    data=exported,
+    file_name="balls_logistics_backup.json",
+    mime="application/json"
+)
+
+uploaded_file = st.file_uploader("📂 Upload Backup JSON", type="json")
+if uploaded_file:
+    import_data(uploaded_file)
+
+st.info("✅ Persistent storage system loaded. All changes will be saved to 'data.json'.")
+
+# ----------------------- Statistics Page -----------------------
+st.markdown("---")
+st.markdown("### 📊 Statistics")
+
+if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
+    avg_mpg = st.session_state.total_miles / st.session_state.total_gallons
+    avg_cost_per_mile = st.session_state.total_cost / st.session_state.total_miles
+
+    st.metric("Average MPG", f"{avg_mpg:.2f} mpg")
+    st.metric("Average Cost per Mile", f"${avg_cost_per_mile:.2f}")
+
+    mpg_data = [
+        {"Date": e["timestamp"], "MPG": e["mpg"]}
+        for e in st.session_state.log if e.get("type") == "Trip"
+    ]
+    if mpg_data:
+        mpg_df = pd.DataFrame(mpg_data)
+        st.altair_chart(
+            alt.Chart(mpg_df).mark_line(point=True).encode(
+                x="Date:T",
+                y="MPG:Q"
+            ).properties(
+                title="MPG Per Trip"
+            ),
+            use_container_width=True
+        )
+
+    if st.session_state.expenses:
+        df_exp = pd.DataFrame(st.session_state.expenses)
+        df_exp = df_exp.groupby("type")["amount"].sum().reset_index()
+        st.altair_chart(
+            alt.Chart(df_exp).mark_arc().encode(
+                theta="amount",
+                color="type",
+                tooltip=["type", "amount"]
+            ).properties(
+                title="Expenses by Category"
+            ),
+            use_container_width=True
+        )
+else:
+    st.info("Add trip and fuel data to see statistics.")
+
+# ----------------------- PDF Report Generator -----------------------
+
+st.markdown("---")
+st.markdown("### 📄 Generate Printable Report")
+
+if st.button("🖨️ Generate Report Text"):
+    report = StringIO()
+    report.write("Balls Logistics Report\n")
+    report.write("=====================\n")
+    report.write(f"Baseline Mileage: {st.session_state.baseline}\n")
+    report.write(f"Last Mileage: {st.session_state.last_mileage}\n")
+    report.write(f"Total Distance: {st.session_state.total_miles:.2f} miles\n")
+    report.write(f"Total Fuel Used: {st.session_state.total_gallons:.2f} gal\n")
+    report.write(f"Total Fuel Cost: ${st.session_state.total_cost:.2f}\n")
+    if st.session_state.total_gallons > 0:
+        mpg = st.session_state.total_miles / st.session_state.total_gallons
+        report.write(f"Average MPG: {mpg:.2f}\n")
+    if st.session_state.total_miles > 0:
+        cost_mile = st.session_state.total_cost / st.session_state.total_miles
+        report.write(f"Average Cost/Mile: ${cost_mile:.2f}\n")
+
+    report.write("\nEarnings Summary:\n")
+    for e in st.session_state.earnings:
+        report.write(f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e['net_owner']:.2f}\n")
+
+    report_text = report.getvalue()
+    st.text_area("Printable Report", report_text, height=400)
+    st.download_button("💾 Download as .txt", report_text, file_name="balls_logistics_report.txt")
+
+# ----------------------- UI Enhancements -----------------------
+st.markdown("""
+    <style>
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 3rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+        max-width: 800px;
+    }
+    @media screen and (max-width: 600px) {
+        .block-container {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+        .stButton button {
+            font-size: 1rem;
+            padding: 0.4rem 0.8rem;
+        }
+    }
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    input[type=number] {
+        appearance: textfield;
+    }
+    .stButton button {
+        border-radius: 0.5rem;
+        padding: 0.6rem 1.2rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # ----------------------- Session State Initialization -----------------------
 if "edit_expense_index" not in st.session_state:
@@ -388,9 +618,5 @@ elif page_name == "settings":
                 window.location.reload();
                 </script>
             """, unsafe_allow_html=True)
-
-
-
-
 
 
