@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
     "baseline": {
         "odometer": 1000.0,
@@ -47,4 +48,55 @@
             "date": "2025-08-03"
         }
     ]
+=======
+{
+    "baseline": {
+        "odometer": 1000.0,
+        "date": "2025-08-03"
+    },
+    "entries": [
+        {
+            "odometer": 2000.0,
+            "gallons": 100.0,
+            "cost": 500.0,
+            "date": "2025-08-03"
+        },
+        {
+            "odometer": 2000.0,
+            "gallons": 100.0,
+            "cost": 500.0,
+            "date": "2025-08-03"
+        },
+        {
+            "odometer": 2000.0,
+            "gallons": 100.0,
+            "cost": 500.0,
+            "date": "2025-08-03"
+        },
+        {
+            "odometer": 2000.0,
+            "gallons": 100.0,
+            "cost": 500.0,
+            "date": "2025-08-03"
+        },
+        {
+            "odometer": 2000.0,
+            "gallons": 100.0,
+            "cost": 500.0,
+            "date": "2025-08-03"
+        },
+        {
+            "odometer": 2000.0,
+            "gallons": 100.0,
+            "cost": 500.0,
+            "date": "2025-08-03"
+        },
+        {
+            "odometer": 2000.0,
+            "gallons": 100.0,
+            "cost": 500.0,
+            "date": "2025-08-03"
+        }
+    ]
+>>>>>>> 076fb9b (last updates)
 }
