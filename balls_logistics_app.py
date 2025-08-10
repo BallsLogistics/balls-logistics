@@ -8,6 +8,32 @@ from firebase_config import auth, db, firebase_app  # uses @st.cache_resource in
 
 st.set_page_config(page_title="🚛 Balls Logistics", layout="centered")
 
+# --- Auth debug + hard logout helpers ---
+def _force_logout():
+    st.session_state.user = None
+    try:
+        _forget_persisted_user_in_browser()
+    except Exception:
+        pass
+    st.success("Forced logout. Reloading…")
+    rerun()
+
+# Allow URL-based logout: add ?logout=1 to the URL
+qs = st.query_params           # dict-like
+if "logout" in qs:             # open with ?logout=1 to force the login screen
+    _force_logout()
+
+
+# Sidebar debug (you can remove later)
+with st.sidebar.expander("🛠 Auth debug"):
+    st.write({
+        "cookie_ready": "yes" if 'cookies' in globals() and cookies.ready() else "no",
+        "allow_cookie_fallback": st.session_state.get("allow_cookie_fallback"),
+        "has_user": bool(st.session_state.get("user")),
+    })
+    if st.button("Force logout (debug)"):
+        _force_logout()
+
 def rerun():
     fn = getattr(st, "rerun", None) or getattr(st, "experimental_rerun", None)
     if callable(fn):
@@ -182,6 +208,15 @@ if st.session_state.user is None:
 
 # ✅ If we reached here, user is authenticated
 st.success(f"✅ Logged in as {st.session_state.user.get('email')}")
+
+def logout():
+    st.session_state.user = None
+    _forget_persisted_user_in_browser()
+    rerun()
+
+with st.sidebar:
+    if st.button("🚪 Logout", use_container_width=True):
+        logout()
 
 if st.session_state.get("allow_cookie_fallback"):
     st.warning("Cookie fallback mode: you’ll stay signed in only until you reload/close this tab. On Safari, allow cookies or open the app in a non-private tab to remember your session.")
