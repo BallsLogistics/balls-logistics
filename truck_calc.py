@@ -1,213 +1,19 @@
-# balls_logistics_app.py (top)
-import streamlit as st, json
+# balls_logistics_app.py
+import streamlit as st
+import os
+import json
 from datetime import datetime
-import pandas as pd, altair as alt
+import pandas as pd
+import altair as alt
 from io import StringIO
-from streamlit_cookies_manager import EncryptedCookieManager
-from firebase_config import auth, db, firebase_app  # uses @st.cache_resource inside
 
 st.set_page_config(page_title="🚛 Balls Logistics", layout="centered")
 
-def rerun():
-    fn = getattr(st, "rerun", None) or getattr(st, "experimental_rerun", None)
-    if callable(fn):
-        fn()
+DATA_FILE = "data.json"
 
-
-
-
-# --- Cookie Manager ---
-cookies = EncryptedCookieManager(
-    prefix="bl_",
-    password=st.secrets["cookie_password"]
-)
-
-# Graceful fallback if cookies are blocked (iOS Safari / private mode / embedded)
-if "allow_cookie_fallback" not in st.session_state:
-    st.session_state.allow_cookie_fallback = False
-
-if not cookies.ready() and not st.session_state.allow_cookie_fallback:
-    st.info("We use a small cookie to keep you signed in. On iPhone, Safari may block it.")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🔁 Retry cookies"):
-            rerun()
-    with c2:
-        if st.button("➡️ Continue without cookies"):
-            st.session_state.allow_cookie_fallback = True
-            rerun()
-    st.stop()
-
-
-COOKIE_KEY = "auth"
-
-def _persist_user_to_browser(user_dict: dict):
-    if st.session_state.get("allow_cookie_fallback"):
-        # No cookies in fallback; we rely on session_state only
-        return
-    payload = {
-        "refreshToken": user_dict.get("refreshToken"),
-        "localId": user_dict.get("localId"),
-        "email": user_dict.get("email"),
-    }
-    cookies[COOKIE_KEY] = json.dumps(payload)
-    cookies.save()
-
-def _read_persisted_user_from_browser():
-    if st.session_state.get("allow_cookie_fallback"):
-        return {}
-    raw = cookies.get(COOKIE_KEY)
-    if not raw:
-        return {}
-    try:
-        return json.loads(raw)
-    except Exception:
-        return {}
-
-def _forget_persisted_user_in_browser():
-    if st.session_state.get("allow_cookie_fallback"):
-        return
-    cookies[COOKIE_KEY] = ""
-    cookies.save()
-
-
-def _refresh_id_token():
-    try:
-        u = st.session_state.get("user")
-        if u and u.get("refreshToken"):
-            refreshed = auth.refresh(u["refreshToken"])
-            u["idToken"] = refreshed.get("idToken", u["idToken"])
-            if refreshed.get("refreshToken"):
-                u["refreshToken"] = refreshed["refreshToken"]
-            _persist_user_to_browser(u)
-    except Exception:
-        st.session_state.user = None
-        _forget_persisted_user_in_browser()
-
-# Restore session on first load
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-if st.session_state.user is None:
-    persisted = _read_persisted_user_from_browser()
-    if persisted and persisted.get("refreshToken"):
-        try:
-            refreshed = auth.refresh(persisted["refreshToken"])
-            st.session_state.user = {
-                "localId": persisted.get("localId"),
-                "idToken": refreshed.get("idToken"),
-                "refreshToken": refreshed.get("refreshToken", persisted["refreshToken"]),
-                "email": persisted.get("email"),
-            }
-            _persist_user_to_browser(st.session_state.user)
-        except Exception:
-            _forget_persisted_user_in_browser()
-
-# ------------------- AUTH UI -------------------
-if st.session_state.user is None:
-    st.title("🔐 Login to Balls Logistics")
-
-    if hasattr(st, "segmented_control"):
-        auth_mode = st.segmented_control(
-            "Choose",
-            options=["Login", "Register", "Reset Password"],
-            default="Login",
-            key="auth_mode_seg",
-        )
-    else:
-        auth_mode = st.radio(
-            "Choose",
-            ["Login", "Register", "Reset Password"],
-            index=0,
-            key="auth_mode_seg",
-        )
-
-    if auth_mode == "Login":
-        with st.form("login_form"):
-            email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Login")
-        if submitted:
-            try:
-                user = auth.sign_in_with_email_and_password(email, password)
-                st.session_state.user = {
-                    "localId": user["localId"],
-                    "idToken": user["idToken"],
-                    "refreshToken": user["refreshToken"],
-                    "email": email
-                }
-                _persist_user_to_browser(st.session_state.user)
-                st.success("✅ Logged in successfully!")
-                rerun()
-            except Exception as e:
-                st.error("❌ " + str(e))
-
-    elif auth_mode == "Register":
-        with st.form("register_form"):
-            email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
-            confirm = st.text_input("Confirm Password", type="password")
-            submitted = st.form_submit_button("Create Account")
-        if submitted:
-            if password != confirm:
-                st.error("Passwords do not match.")
-            else:
-                try:
-                    auth.create_user_with_email_and_password(email, password)
-                    user = auth.sign_in_with_email_and_password(email, password)
-                    st.session_state.user = {
-                        "localId": user["localId"],
-                        "idToken": user["idToken"],
-                        "refreshToken": user["refreshToken"],
-                        "email": email
-                    }
-                    _persist_user_to_browser(st.session_state.user)
-                    st.success("✅ Registration successful!")
-                    rerun()
-                except Exception as e:
-                    st.error("❌ " + str(e))
-
-    else:  # Reset Password
-        with st.form("reset_form"):
-            reset_email = st.text_input("Email to reset")
-            submitted = st.form_submit_button("Send Reset Email")
-        if submitted:
-            try:
-                auth.send_password_reset_email(reset_email)
-                st.success("✅ Password reset email sent!")
-            except Exception as e:
-                st.error("❌ " + str(e))
-
-    st.stop()
-
-# ✅ If we reached here, user is authenticated
-st.success(f"✅ Logged in as {st.session_state.user.get('email')}")
-
-if st.session_state.get("allow_cookie_fallback"):
-    st.warning("Cookie fallback mode: you’ll stay signed in only until you reload/close this tab. On Safari, allow cookies or open the app in a non-private tab to remember your session.")
-
-# Put a visible Logout button in the main area (works great on mobile)
-header_left, header_right = st.columns([1, 0.25])
-with header_left:
-    st.caption("Session active")
-with header_right:
-    if st.button("🚪 Logout", key="logout_top"):
-        st.session_state.user = None
-        _forget_persisted_user_in_browser()
-        # Flush the cookie immediately so the next run can't restore
-        if st.session_state.get("_cookies_dirty"):
-            cookies.save()
-            st.session_state._cookies_dirty = False
-        rerun()
-
-
-# ----------------------- Device Profile Detection -----------------------
-if "device_profile" not in st.session_state:
-    st.session_state.device_profile = "desktop"  # simple default
-
-# ----------------------- Firebase Persistence Functions -----------------------
+# ----------------------- Persistence Functions -----------------------
 def save_data():
-    uid = st.session_state.user['localId']
+    # Save current session state values to a local JSON file for persistence
     data = {
         "baseline": st.session_state.baseline,
         "last_mileage": st.session_state.last_mileage,
@@ -219,48 +25,42 @@ def save_data():
         "expenses": st.session_state.expenses,
         "earnings": st.session_state.earnings
     }
-    db.child("users").child(uid).set(data, st.session_state.user['idToken'])
-
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
 def load_data():
-    uid = st.session_state.user['localId']
-    try:
-        data = db.child("users").child(uid).get(st.session_state.user['idToken']).val()
-        if data:
-            st.session_state.baseline = data.get("baseline")
-            st.session_state.last_mileage = data.get("last_mileage")
-            st.session_state.total_miles = data.get("total_miles", 0.0)
-            st.session_state.total_cost = data.get("total_cost", 0.0)
-            st.session_state.total_gallons = data.get("total_gallons", 0.0)
-            st.session_state.last_trip_summary = data.get("last_trip_summary", {})
-            st.session_state.log = data.get("log", [])
-            st.session_state.expenses = data.get("expenses", [])
-            st.session_state.earnings = data.get("earnings", [])
-    except:
-        st.warning("No data found for user. Starting fresh.")
+    # Load session state from a saved JSON file, if it exists
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r") as f:
+            data = json.load(f)
+        st.session_state.baseline = data.get("baseline")
+        st.session_state.last_mileage = data.get("last_mileage")
+        st.session_state.total_miles = data.get("total_miles", 0.0)
+        st.session_state.total_cost = data.get("total_cost", 0.0)
+        st.session_state.total_gallons = data.get("total_gallons", 0.0)
+        st.session_state.last_trip_summary = data.get("last_trip_summary", {})
+        st.session_state.log = data.get("log", [])
+        st.session_state.expenses = data.get("expenses", [])
+        st.session_state.earnings = data.get("earnings", [])
 
 # ----------------------- Load on First App Run -----------------------
 if "initialized" not in st.session_state:
+    # Load existing data only on the first run to avoid overwriting session state
     st.session_state.initialized = True
     load_data()
 
 # ----------------------- Auto-save Logic -----------------------
+# Save session state to file only if changes have been marked
 if st.session_state.get("pending_changes", False):
     save_data()
     st.session_state.pending_changes = False
 
-# ----------------------- Layout Mode Notification -----------------------
-layout = st.session_state.device_profile
-if layout == "mobile":
-    st.info("📱 Mobile layout detected")
-elif layout == "tablet":
-    st.info("📲 Tablet layout detected")
-else:
-    st.info("💻 Desktop layout detected")
-
 # Now the rest of your app logic should go below
 # Be sure to include this line after any state change:
 # st.session_state.pending_changes = True
+
+
+
 
 # ----------------------- Export/Import Functions -----------------------
 
@@ -366,7 +166,7 @@ if uploaded_file:
     import_data(uploaded_file)
     st.session_state.pending_changes = True
 
-st.info("✅ Data is saved to your Firebase account. You can also backup/restore via JSON.")
+st.info("✅ Persistent storage system loaded. All changes will be saved to 'data.json'.")
 
 # ----------------------- Statistics Page -----------------------
 st.markdown("---")
@@ -474,7 +274,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
 
 # ----------------------- Session State Initialization -----------------------
 if "edit_expense_index" not in st.session_state:
@@ -617,7 +416,7 @@ if page_name == "mileage":
                         st.session_state.log.append(log_entry)
                         st.session_state.last_trip_summary = log_entry
                         st.session_state.pending_changes = True
-                        rerun()
+                        st.rerun()
 
                         st.session_state.pending_changes = True
 
@@ -684,7 +483,7 @@ elif page_name == "expenses":
             })
             st.success("Expense added.")
             st.session_state.pending_changes = True
-            rerun()
+            st.rerun()
 
     if "edit_expense_index" not in st.session_state:
         st.session_state.edit_expense_index = None
@@ -719,11 +518,11 @@ elif page_name == "expenses":
                     st.session_state.pending_changes = True
                     st.session_state.edit_expense_index = None
                     st.success("Expense updated.")
-                    rerun()
+                    st.rerun()
             with col2:
                 if st.button("❌ Cancel Edit"):
                     st.session_state.edit_expense_index = None
-                    rerun()
+                    st.rerun()
         else:
             # Reset if somehow invalid index remains
             st.session_state.edit_expense_index = None
@@ -739,13 +538,13 @@ elif page_name == "expenses":
             with col2:
                 if st.button("✏️", key=f"edit_expense_{i}"):
                     st.session_state.edit_expense_index = idx
-                    rerun()
+                    st.rerun()
             with col3:
                 if st.button("🗑", key=f"delete_expense_{i}"):
                     del st.session_state.expenses[idx]
                     st.session_state.pending_changes = True
                     st.success("Expense deleted.")
-                    rerun()
+                    st.rerun()
     else:
         st.info("No expenses recorded yet.")
 
@@ -847,13 +646,6 @@ elif page_name == "upload":
 # ---------------------------- PAGE 6: Settings ----------------------------
 elif page_name == "settings":
     st.subheader("⚙️ App Settings")
-
-    if st.session_state.get("allow_cookie_fallback"):
-        if st.button("Try enabling cookies again"):
-            st.session_state.allow_cookie_fallback = False
-            rerun()
-
-    st.divider()
     if "reset_requested" not in st.session_state:
         st.session_state.reset_requested = False
 
@@ -865,7 +657,12 @@ elif page_name == "settings":
         if st.button("⚠️ Confirm Reset"):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
-            _forget_persisted_user_in_browser()
-            st.markdown("<script>window.location.reload();</script>", unsafe_allow_html=True)
+
+            # Inject JavaScript to reload the browser page
+            st.markdown("""
+                <script>
+                window.location.reload();
+                </script>
+            """, unsafe_allow_html=True)
 
 
