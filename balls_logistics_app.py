@@ -215,25 +215,15 @@ def logout():
     rerun()
 
 with st.sidebar:
-    if st.button("🚪 Logout", use_container_width=True):
-        logout()
+    st.button("🚪 Logout", use_container_width=True, on_click=logout)
 
 if st.session_state.get("allow_cookie_fallback"):
     st.warning("Cookie fallback mode: you’ll stay signed in only until you reload/close this tab. On Safari, allow cookies or open the app in a non-private tab to remember your session.")
 
-# Put a visible Logout button in the main area (works great on mobile)
-header_left, header_right = st.columns([1, 0.25])
-with header_left:
-    st.caption("Session active")
-with header_right:
-    if st.button("🚪 Logout", key="logout_top"):
-        st.session_state.user = None
-        _forget_persisted_user_in_browser()
-        # Flush the cookie immediately so the next run can't restore
-        if st.session_state.get("_cookies_dirty"):
-            cookies.save()
-            st.session_state._cookies_dirty = False
-        rerun()
+
+# Put a visible Logout button in the main area (mobile-safe and full width)
+st.button("🚪 Logout", key="logout_main", use_container_width=True, on_click=logout)
+st.caption("Session active")
 
 
 # ----------------------- Device Profile Detection -----------------------
@@ -549,7 +539,7 @@ if "earnings" not in st.session_state:
 st.markdown("""
     <style>
         div[data-testid=\"stHorizontalBlock\"] > div {
-            justify-content: center;
+            
         }
         button[kind=\"secondary\"] {
             padding: 1.5em 2em;
