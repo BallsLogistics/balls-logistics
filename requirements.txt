@@ -1,3 +1,6 @@
-streamlit
-pandas
-altair
+streamlit>=1.37
+streamlit-cookies-manager>=0.2.0
+pyrebase4>=4.7.1
+pandas>=2.0
+altair>=5.0
+requests>=2.31
