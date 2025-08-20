@@ -33,6 +33,31 @@ except Exception:
 if "page" in _qp:
     st.session_state.page = _qp["page"][0] if isinstance(_qp["page"], list) else _qp["page"]
 
+def mobile_bottom_nav(current: str):
+    # Anchor to target with CSS
+    st.markdown('<span id="bl-nav-anchor"></span>', unsafe_allow_html=True)
+    # The very next container becomes our sticky bar via CSS below
+    with st.container():
+        cols = st.columns(6)
+        items = [
+            ("⛽ Fuel",      "mileage"),
+            ("💸 Expenses",  "expenses"),
+            ("💰 Income",    "earnings"),
+            ("📜 Log",       "log"),
+            ("📁 Upload",    "upload"),
+            ("⚙️ Settings",  "settings"),
+        ]
+        for (label, pid), col in zip(items, cols):
+            with col:
+                active = (current == pid)
+                btn = f"**{label}**" if active else label
+                st.button(
+                    btn,
+                    key=f"mnav_{pid}",
+                    use_container_width=True,
+                    on_click=lambda p=pid: switch_page(p),
+                )
+
 # --- Layout & sticky-nav CSS ---
 st.markdown("""
 <style>
@@ -91,6 +116,24 @@ st.markdown("""
       #bl-bottom-nav { background: rgba(30,30,30,.88); border-top-color: rgba(255,255,255,.12); }
       #bl-bottom-nav a.active { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.20); }
     }
+    
+    /* Make the first container after #bl-nav-anchor sticky on phones */
+    @media (max-width: 768px){
+        #bl-nav-anchor + div {
+         position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+         padding: 8px calc(10px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+         background: rgba(255,255,255,.92);
+         backdrop-filter: blur(6px);
+         border-top: 1px solid rgba(0,0,0,.08);
+        }
+        /* tighter gutters for the 6 columns */
+        #bl-nav-anchor + div [data-testid="column"] > div { padding: 0 .25rem; }
+        /* ensure page content leaves room for the bar */
+        .block-container { padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
+        }
+    /* Dark mode tweak */
+    @media (max-width: 768px) and (prefers-color-scheme: dark){
+        #bl-nav-anchor + div { background: rgba(30,30,30,.88); border-top-color: rgba(255,255,255,.12); }
 </style>
 
 """, unsafe_allow_html=True)
@@ -967,14 +1010,4 @@ elif page_name == "settings":
 
 # ---------------------------- Mobile sticky bottom nav ----------------------------
 _current = st.session_state.get("page", "mileage")
-st.markdown(f"""
-<div id="bl-bottom-nav">
-  <a href="?page=mileage"  class="{'active' if _current=='mileage'  else ''}">⛽ Fuel</a>
-  <a href="?page=expenses" class="{'active' if _current=='expenses' else ''}">💸 Expenses</a>
-  <a href="?page=earnings" class="{'active' if _current=='earnings' else ''}">💰 Income</a>
-  <a href="?page=log"      class="{'active' if _current=='log'      else ''}">📜 Log</a>
-  <a href="?page=upload"   class="{'active' if _current=='upload'   else ''}">📁 Upload</a>
-  <a href="?page=settings" class="{'active' if _current=='settings' else ''}">⚙️ Settings</a>
-  <a href="?logout=1"      class="">🚪 Logout</a>
-</div>
-""", unsafe_allow_html=True)
+mobile_bottom_nav(st.session_state.get("page", "mileage"))
