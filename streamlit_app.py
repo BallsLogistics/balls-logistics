@@ -18,13 +18,18 @@ st.set_page_config(
 )
 
 # ---------- Responsive helpers & CSS ----------
+# ---------- Routing helpers ----------
+def _set_qp(**kwargs):
+    # robust across Streamlit versions
+    try:
+        st.query_params.update(kwargs)
+    except Exception:
+        st.experimental_set_query_params(**kwargs)
+
 def switch_page(page_id: str):
     st.session_state.page = page_id
-    # keep URL in sync for share/refresh
-    try:
-        st.query_params["page"] = page_id  # Streamlit >=1.33
-    except Exception:
-        st.experimental_set_query_params(page=page_id)
+    _set_qp(page=page_id)
+
 
 def setup_responsive_and_route():
     # Read ?page= from URL on first load
@@ -105,23 +110,52 @@ def setup_responsive_and_route():
     """, unsafe_allow_html=True)
 
 def mobile_bottom_nav(current: str):
-    # Use anchor links (with ?page=...) so it survives refresh/sharing.
-    def item(page_id, icon, label):
-        active = "active" if current == page_id else ""
-        return f'<a class="{active}" href="?page={page_id}"><div class="icon">{icon}</div><div>{label}</div></a>'
-    st.markdown(
-        f"""
-        <nav class="bl-bottom-nav">
-          {item("mileage", "⛽", "Fuel")}
-          {item("expenses", "💸", "Expenses")}
-          {item("earnings", "💰", "Income")}
-          {item("log", "📜", "Log")}
-          {item("upload", "📁", "Upload")}
-          {item("settings", "⚙️", "Settings")}
-        </nav>
-        """,
-        unsafe_allow_html=True
-    )
+    # Sticky wrapper the buttons live in
+    st.markdown("""
+    <style>
+      #bl-bottom-holder {
+        position: fixed; left: 0; right: 0; bottom: 0;
+        z-index: 1000;
+        padding: 0.35rem calc(8px + env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-right));
+        backdrop-filter: blur(6px);
+        border-top: 1px solid rgba(0,0,0,.08);
+        background-color: rgba(255,255,255,.85);
+      }
+      @media (min-width: 769px) { #bl-bottom-holder { display: none; } }
+      @media (prefers-color-scheme: dark) {
+        #bl-bottom-holder { background-color: rgba(30,30,30,.85); border-top-color: rgba(255,255,255,.1); }
+      }
+      #bl-bottom-holder .stButton > button {
+        min-height: 40px; font-size: 0.82rem; line-height: 1.1;
+        border-radius: 12px; padding: 0.45rem 0.25rem;
+      }
+      #bl-bottom-holder .active > button { font-weight: 800; background: rgba(0,0,0,.06); }
+      @media (prefers-color-scheme: dark) {
+        #bl-bottom-holder .active > button { background: rgba(255,255,255,.06); }
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div id="bl-bottom-holder">', unsafe_allow_html=True)
+    cols = st.columns(6)
+    items = [
+        ("mileage",  "⛽ Fuel"),
+        ("expenses", "💸 Expenses"),
+        ("earnings", "💰 Income"),
+        ("log",      "📜 Log"),
+        ("upload",   "📁 Upload"),
+        ("settings", "⚙️ Settings"),
+    ]
+    for (pid, label), col in zip(items, cols):
+        with col:
+            # highlight current page
+            container_class = "active" if current == pid else ""
+            st.markdown(f'<div class="{container_class}">', unsafe_allow_html=True)
+            if st.button(label, key=f"mnav_{pid}", use_container_width=True):
+                switch_page(pid)   # <-- soft nav: rerun only, no full reload
+            st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
 setup_responsive_and_route()
 
