@@ -37,12 +37,11 @@ def setup_responsive_and_route():
     if "page" in qp:
         st.session_state.page = qp["page"]
 
-    # CSS: layout, bottom nav (mobile), hide/show blocks per breakpoint
     st.markdown("""
     <style>
       /* Container width & gutters */
       .block-container {
-        max-width: 980px; padding: 0.75rem 1rem 5.5rem; /* bottom pad for bottom nav */
+        max-width: 980px; padding: 0.75rem 1rem 5.5rem;
       }
       @media (min-width: 1100px) {
         .block-container { max-width: 1120px; }
@@ -55,9 +54,6 @@ def setup_responsive_and_route():
       .stButton button, .stDownloadButton button {
         min-height: 44px; border-radius: 12px; padding: 0.7rem 1rem;
       }
-      .stSelectbox, .stNumberInput, .stTextInput {
-        --bl-font: 16px;
-      }
       .stNumberInput label, .stTextInput label, .stSelectbox label { font-weight: 600; }
       @media (max-width: 768px) {
         .stNumberInput label, .stTextInput label, .stSelectbox label { font-size: 0.95rem; }
@@ -66,17 +62,9 @@ def setup_responsive_and_route():
 
       /* Desktop top nav vs. Mobile bottom nav */
       .bl-desktop-nav { display: block; }
-      
       @media (max-width: 768px) {
         .bl-desktop-nav { display: none !important; }
-        
       }
-
-      
-      
-      
-      @media (prefers-color-scheme: dark) {
-        
 
       /* Tables & charts: edge-to-edge on mobile */
       @media (max-width: 768px) {
@@ -88,14 +76,20 @@ def setup_responsive_and_route():
         div[data-testid="stMetricValue"] { font-size: 1.1rem; }
         div[data-testid="stMetricLabel"] { font-size: 0.85rem; }
       }
+
+      /* Optional dark mode tweaks (closed properly) */
+      @media (prefers-color-scheme: dark) {
+        /* put dark-mode overrides here if needed */
+      }
     </style>
     """, unsafe_allow_html=True)
 
+
 def mobile_bottom_nav(current: str):
-    # 1) Insert an invisible anchor element
+    # 1) Anchor
     st.markdown('<span id="bl-nav-anchor"></span>', unsafe_allow_html=True)
 
-    # 2) Render the nav as normal Streamlit widgets
+    # 2) Nav buttons (soft navigation)
     with st.container():
         cols = st.columns(6)
         items = [
@@ -113,43 +107,56 @@ def mobile_bottom_nav(current: str):
                 if st.button(btn_label, key=f"mnav_{pid}", use_container_width=True):
                     switch_page(pid)
 
-    # 3) Make the container that follows the anchor sticky on small screens
+    # 3) Sticky CSS with broader sibling targets
     st.markdown("""
     <style>
-      /* Give the main page some bottom room on mobile so content isn't hidden behind the bar */
       @media (max-width: 768px) {
-        .block-container {
-          padding-bottom: calc(82px + env(safe-area-inset-bottom));
-        }
+        .block-container { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
       }
 
-      /* The Streamlit block that is rendered *immediately after* #bl-nav-anchor */
+      /* Try multiple adjacent-sibling variants to catch Streamlit wrappers */
       @media (max-width: 768px) {
-        #bl-nav-anchor + div[data-testid="stVerticalBlock"] {
+        #bl-nav-anchor + div,
+        #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+        #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+        #bl-nav-anchor + div.element-container {
           position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
           padding: 0.35rem calc(10px + env(safe-area-inset-left)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-right));
           backdrop-filter: blur(6px);
           border-top: 1px solid rgba(0,0,0,.08);
           background: rgba(255,255,255,.88);
         }
-        #bl-nav-anchor + div[data-testid="stVerticalBlock"] .stButton>button {
+        /* Style buttons inside whichever wrapper matched */
+        #bl-nav-anchor + div .stButton>button,
+        #bl-nav-anchor + div[data-testid="stVerticalBlock"] .stButton>button,
+        #bl-nav-anchor + div[data-testid="stHorizontalBlock"] .stButton>button,
+        #bl-nav-anchor + div.element-container .stButton>button {
           min-height: 40px; font-size: 0.84rem; line-height: 1.1;
           border-radius: 12px; padding: 0.45rem 0.25rem;
         }
       }
+
       @media (prefers-color-scheme: dark) {
-        #bl-nav-anchor + div[data-testid="stVerticalBlock"] {
+        #bl-nav-anchor + div,
+        #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+        #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+        #bl-nav-anchor + div.element-container {
           background: rgba(30,30,30,.88);
           border-top-color: rgba(255,255,255,.1);
         }
       }
 
-      /* Hide the sticky bar on tablet/desktop */
+      /* Hide bar on tablet/desktop */
       @media (min-width: 769px) {
-        #bl-nav-anchor, #bl-nav-anchor + div[data-testid="stVerticalBlock"] { display: none; }
+        #bl-nav-anchor,
+        #bl-nav-anchor + div,
+        #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+        #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+        #bl-nav-anchor + div.element-container { display: none; }
       }
     </style>
     """, unsafe_allow_html=True)
+
 
 
 
@@ -1051,5 +1058,13 @@ elif page_name == "settings":
                 del st.session_state[key]
             _forget_persisted_user_in_browser()
             st.markdown("<script>window.location.reload();</script>", unsafe_allow_html=True)
+
+
+# ... your pages code ends here ...
+
+# Always call after page content so the sticky bar sits above everything
+page_name = st.session_state.get("page", "mileage")
+mobile_bottom_nav(page_name)
+
 
 
