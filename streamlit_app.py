@@ -76,10 +76,66 @@ def setup_responsive_and_route():
     div[data-testid="stMetricValue"] { font-size: 1.1rem; }
     div[data-testid="stMetricLabel"] { font-size: 0.85rem; }
   }
-  
+
+  /* === Sticky bottom nav (anchor + sibling selector) === */
+  @media (max-width: 768px) {
+    /* Make room for the fixed bar */
+    .block-container {
+      padding-bottom: calc(82px + env(safe-area-inset-bottom));
+      /* Legacy iOS */
+      padding-bottom: calc(82px + constant(safe-area-inset-bottom));
+    }
+
+    /* Grab the first Streamlit wrapper after the anchor */
+    #bl-nav-anchor + div,
+    #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+    #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+    #bl-nav-anchor + div.element-container {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+      padding: 0.35rem calc(10px + env(safe-area-inset-left))
+               calc(10px + env(safe-area-inset-bottom))
+               calc(10px + env(safe-area-inset-right));
+      /* Legacy iOS safe-area fallback */
+      padding: 0.35rem calc(10px + constant(safe-area-inset-left))
+               calc(10px + constant(safe-area-inset-bottom))
+               calc(10px + constant(safe-area-inset-right));
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px); /* iOS Safari */
+      border-top: 1px solid rgba(0,0,0,.08);
+      background: rgba(255,255,255,.88);
+    }
+
+    /* Buttons inside the sticky wrapper */
+    #bl-nav-anchor + div .stButton>button,
+    #bl-nav-anchor + div[data-testid="stVerticalBlock"] .stButton>button,
+    #bl-nav-anchor + div[data-testid="stHorizontalBlock"] .stButton>button,
+    #bl-nav-anchor + div.element-container .stButton>button {
+      min-height: 40px; font-size: 0.84rem; line-height: 1.1;
+      border-radius: 12px; padding: 0.45rem 0.25rem;
+    }
+  }
+
+  /* Hide the mobile bar on tablet/desktop */
+  @media (min-width: 769px) {
+    #bl-nav-anchor,
+    #bl-nav-anchor + div,
+    #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+    #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+    #bl-nav-anchor + div.element-container { display: none; }
+  }
+
+  /* Dark mode for sticky bar */
+  @media (prefers-color-scheme: dark) {
+    #bl-nav-anchor + div,
+    #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+    #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+    #bl-nav-anchor + div.element-container {
+      background: rgba(30,30,30,.88);
+      border-top-color: rgba(255,255,255,.1);
+    }
+  }
 </style>
     """, unsafe_allow_html=True)
-
 
 setup_responsive_and_route()
 
