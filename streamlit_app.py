@@ -1,18 +1,16 @@
-# balls_logistics_app.py (top)
+# streamlit_app.py (top)
 import streamlit as st, json
 from datetime import datetime
 import pandas as pd, altair as alt
 from io import StringIO
 from streamlit_cookies_manager import EncryptedCookieManager
 from firebase_config import auth, db, firebase_app  # uses @st.cache_resource inside
-import pyrebase
-@st.cache_resource
-def _init():
-    cfg = dict(st.secrets["firebase"])
-    fb = pyrebase.initialize_app(cfg)
-    return fb, fb.auth(), fb.database()
 
-firebase_app, auth, db = _init()
+
+
+if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID"]):
+    st.stop()  # prevents half-initialized app from running
+
 st.set_page_config(page_title="🚛 Balls Logistics", layout="centered")
 
 # --- Auth debug + hard logout helpers ---
