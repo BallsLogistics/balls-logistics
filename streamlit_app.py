@@ -121,6 +121,9 @@ def setup_responsive_and_route():
 
 
 def mobile_bottom_nav(current: str):
+    # Anchor so CSS can target the *next* block reliably
+    st.markdown('<span id="bl-nav-anchor"></span>', unsafe_allow_html=True)
+
     with st.container():
         cols = st.columns(6)
         items = [
@@ -137,6 +140,41 @@ def mobile_bottom_nav(current: str):
                 btn_label = f"**{label}**" if active else label
                 if st.button(btn_label, key=f"mnav_{pid}", use_container_width=True):
                     switch_page(pid)
+
+    # Anchor-based sticky CSS (add once, anywhere)
+    st.markdown("""
+    <style>
+      @media (max-width: 768px) {
+        .block-container { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
+        #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+        #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+        #bl-nav-anchor + div {
+          position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+          padding: 0.35rem calc(10px + env(safe-area-inset-left))
+                   calc(10px + env(safe-area-inset-bottom))
+                   calc(10px + env(safe-area-inset-right));
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          border-top: 1px solid rgba(0,0,0,.08);
+          background: rgba(255,255,255,.88);
+        }
+        #bl-nav-anchor + div .stButton>button {
+          min-height: 40px; font-size: 0.84rem; line-height: 1.1;
+          border-radius: 12px; padding: 0.45rem 0.25rem;
+        }
+      }
+      @media (min-width: 769px) {
+        #bl-nav-anchor, #bl-nav-anchor + div { display: none; }
+      }
+      @media (prefers-color-scheme: dark) {
+        #bl-nav-anchor + div {
+          background: rgba(30,30,30,.88);
+          border-top-color: rgba(255,255,255,.1);
+        }
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
 
 
 setup_responsive_and_route()
