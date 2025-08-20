@@ -4,12 +4,19 @@ from datetime import datetime
 import pandas as pd, altair as alt
 from io import StringIO
 from streamlit_cookies_manager import EncryptedCookieManager
-from firebase_config import auth, db, firebase_app  # uses @st.cache_resource inside
 
 
 
+
+# Require secrets (dev-friendly message instead of a blank page)
 if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID"]):
-    st.stop()  # prevents half-initialized app from running
+    st.error("Missing Firebase config. Add FIREBASE_API_KEY and FIREBASE_APP_ID to .streamlit/secrets.toml.")
+    st.stop()
+
+
+from firebase_config import auth, db, firebase_app  # noqa: F401
+
+
 
 st.set_page_config(
     page_title="🚛 Real Balls Logistics",
@@ -18,9 +25,7 @@ st.set_page_config(
 )
 
 # ---------- Responsive helpers & CSS ----------
-# ---------- Routing helpers ----------
 def _set_qp(**kwargs):
-    # robust across Streamlit versions
     try:
         st.query_params.update(kwargs)
     except Exception:
@@ -30,9 +35,8 @@ def switch_page(page_id: str):
     st.session_state.page = page_id
     _set_qp(page=page_id)
 
-
 def setup_responsive_and_route():
-    # Read ?page= from URL on first load (works across Streamlit versions)
+    # Read ?page= on first load (works across Streamlit versions)
     try:
         qp = st.query_params
     except Exception:
@@ -41,84 +45,73 @@ def setup_responsive_and_route():
         st.session_state.page = qp["page"][0] if isinstance(qp["page"], list) else qp["page"]
 
     st.markdown("""
-<style>
-  /* Container width & gutters */
-  .block-container {
-    max-width: 980px; padding: 0.75rem 1rem 5.5rem;
-  }
-  @media (min-width: 1100px) {
-    .block-container { max-width: 1120px; }
-  }
+    <style>
+      /* Base container sizing */
+      .block-container { max-width: 980px; padding: 0.75rem 1rem 5.5rem; }
+      @media (min-width: 1100px) { .block-container { max-width: 1120px; } }
 
-  /* Touch targets & compact inputs */
-  .stButton button, .stDownloadButton button {
-    min-height: 44px; border-radius: 12px; padding: 0.7rem 1rem;
-  }
-  .stNumberInput label, .stTextInput label, .stSelectbox label { font-weight: 600; }
-  @media (max-width: 768px) {
-    .stNumberInput label, .stTextInput label, .stSelectbox label { font-size: 0.95rem; }
-    .stNumberInput input, .stTextInput input { font-size: 1rem; }
-  }
+      /* Touch targets & compact inputs */
+      .stButton button, .stDownloadButton button { min-height: 44px; border-radius: 12px; padding: 0.7rem 1rem; }
+      .stNumberInput label, .stTextInput label, .stSelectbox label { font-weight: 600; }
+      @media (max-width: 768px) {
+        .stNumberInput label, .stTextInput label, .stSelectbox label { font-size: 0.95rem; }
+        .stNumberInput input, .stTextInput input { font-size: 1rem; }
+      }
 
-  /* Desktop top nav vs. Mobile bottom nav */
-  .bl-desktop-nav { display: block; }
-  @media (max-width: 768px) {
-    .bl-desktop-nav { display: none !important; }
-  }
+      /* Desktop top nav vs. Mobile bottom nav */
+      .bl-desktop-nav { display: block; }
+      @media (max-width: 768px) { .bl-desktop-nav { display: none !important; } }
 
-  /* Tables & charts: edge-to-edge on mobile */
-  @media (max-width: 768px) {
-    div[data-testid="stDataFrame"] { margin-left: -4px; margin-right: -4px; }
-  }
+      /* Tables & charts: edge-to-edge on mobile */
+      @media (max-width: 768px) {
+        div[data-testid="stDataFrame"] { margin-left: -4px; margin-right: -4px; }
+      }
 
-  /* Compact metrics tiles on mobile */
-  @media (max-width: 768px) {
-    div[data-testid="stMetricValue"] { font-size: 1.1rem; }
-    div[data-testid="stMetricLabel"] { font-size: 0.85rem; }
-  }
+      /* Compact metrics tiles on mobile */
+      @media (max-width: 768px) {
+        div[data-testid="stMetricValue"] { font-size: 1.1rem; }
+        div[data-testid="stMetricLabel"] { font-size: 0.85rem; }
+      }
 
-  /* Sticky bottom nav = the very last Streamlit block (the nav container) */
-  @media (max-width: 768px) {
-    .block-container { 
-      padding-bottom: calc(82px + env(safe-area-inset-bottom)); 
-    }
-    /* VerticalBlock & HorizontalBlock fallbacks across Streamlit versions */
-    .block-container > div[data-testid="stVerticalBlock"]:last-child,
-    .block-container > div[data-testid="stHorizontalBlock"]:last-child {
-      position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
-      padding: 0.35rem calc(10px + env(safe-area-inset-left)) 
-               calc(10px + env(safe-area-inset-bottom)) 
-               calc(10px + env(safe-area-inset-right));
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px)
-      border-top: 1px solid rgba(0,0,0,.08);
-      background: rgba(255,255,255,.88);
-    }
-    .block-container > div[data-testid="stVerticalBlock"]:last-child .stButton>button,
-    .block-container > div[data-testid="stHorizontalBlock"]:last-child .stButton>button {
-      min-height: 40px; font-size: 0.84rem; line-height: 1.1;
-      border-radius: 12px; padding: 0.45rem 0.25rem;
-    }
-  }
+      /* Sticky bottom nav via anchor — robust across Streamlit wrappers */
+      @media (max-width: 768px) {
+        .block-container { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
 
-  /* Hide sticky bar on tablet/desktop to avoid duplication with top nav */
-  @media (min-width: 769px) {
-    .block-container > div[data-testid="stVerticalBlock"]:last-child,
-    .block-container > div[data-testid="stHorizontalBlock"]:last-child { display: none; }
-  }
+        /* The nav container is the block immediately after the anchor */
+        #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+        #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+        #bl-nav-anchor + div {
+          position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+          padding: 0.35rem calc(10px + env(safe-area-inset-left))
+                   calc(10px + env(safe-area-inset-bottom))
+                   calc(10px + env(safe-area-inset-right));
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          border-top: 1px solid rgba(0,0,0,.08);
+          background: rgba(255,255,255,.88);
+        }
+        #bl-nav-anchor + div .stButton>button {
+          min-height: 40px; font-size: 0.84rem; line-height: 1.1;
+          border-radius: 12px; padding: 0.45rem 0.25rem;
+        }
+      }
 
-  /* Dark mode tweaks for sticky bar */
-  @media (prefers-color-scheme: dark) {
-    .block-container > div[data-testid="stVerticalBlock"]:last-child,
-    .block-container > div[data-testid="stHorizontalBlock"]:last-child {
-      background: rgba(30,30,30,.88);
-      border-top-color: rgba(255,255,255,.1);
-    }
-  }
-</style>
+      /* Hide sticky bar on tablet/desktop (prevents duplicates) */
+      @media (min-width: 769px) {
+        #bl-nav-anchor, #bl-nav-anchor + div { display: none; }
+      }
+
+      /* Dark mode for sticky bar */
+      @media (prefers-color-scheme: dark) {
+        #bl-nav-anchor + div {
+          background: rgba(30,30,30,.88);
+          border-top-color: rgba(255,255,255,.1);
+        }
+      }
+    </style>
     """, unsafe_allow_html=True)
 
-
+setup_responsive_and_route()
 
 def mobile_bottom_nav(current: str):
     # Anchor so CSS can target the *next* block reliably
@@ -141,43 +134,10 @@ def mobile_bottom_nav(current: str):
                 if st.button(btn_label, key=f"mnav_{pid}", use_container_width=True):
                     switch_page(pid)
 
-    # Anchor-based sticky CSS (add once, anywhere)
-    st.markdown("""
-    <style>
-      @media (max-width: 768px) {
-        .block-container { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
-        #bl-nav-anchor + div[data-testid="stVerticalBlock"],
-        #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
-        #bl-nav-anchor + div {
-          position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
-          padding: 0.35rem calc(10px + env(safe-area-inset-left))
-                   calc(10px + env(safe-area-inset-bottom))
-                   calc(10px + env(safe-area-inset-right));
-          backdrop-filter: blur(6px);
-          -webkit-backdrop-filter: blur(6px);
-          border-top: 1px solid rgba(0,0,0,.08);
-          background: rgba(255,255,255,.88);
-        }
-        #bl-nav-anchor + div .stButton>button {
-          min-height: 40px; font-size: 0.84rem; line-height: 1.1;
-          border-radius: 12px; padding: 0.45rem 0.25rem;
-        }
-      }
-      @media (min-width: 769px) {
-        #bl-nav-anchor, #bl-nav-anchor + div { display: none; }
-      }
-      @media (prefers-color-scheme: dark) {
-        #bl-nav-anchor + div {
-          background: rgba(30,30,30,.88);
-          border-top-color: rgba(255,255,255,.1);
-        }
-      }
-    </style>
-    """, unsafe_allow_html=True)
 
 
 
-setup_responsive_and_route()
+
 
 
 
@@ -197,15 +157,7 @@ if "logout" in qs:             # open with ?logout=1 to force the login screen
     _force_logout()
 
 
-# Sidebar debug (you can remove later)
-with st.sidebar.expander("🛠 Auth debug"):
-    st.write({
-        "cookie_ready": "yes" if 'cookies' in globals() and cookies.ready() else "no",
-        "allow_cookie_fallback": st.session_state.get("allow_cookie_fallback"),
-        "has_user": bool(st.session_state.get("user")),
-    })
-    if st.button("Force logout (debug)"):
-        _force_logout()
+
 
 def rerun():
     fn = getattr(st, "rerun", None) or getattr(st, "experimental_rerun", None)
@@ -879,44 +831,41 @@ elif page_name == "expenses":
     if "edit_expense_index" not in st.session_state:
         st.session_state.edit_expense_index = None
 
-    # Show edit form if index is set and still valid
-    if st.session_state.edit_expense_index is not None:
-        idx = st.session_state.edit_expense_index
-        if 0 <= idx < len(st.session_state.expenses):
-            expense = st.session_state.expenses[idx]
+    # --- Edit expense form (shows after you click ✏️) ---
+    idx = st.session_state.get("edit_expense_index")
+    if isinstance(idx, int) and 0 <= idx < len(st.session_state.expenses):
+        e = st.session_state.expenses[idx]
 
-            st.info(f"Editing expense from {expense['date']}")
-            new_type = st.selectbox(
-                "Expense Type",
-                expense_options,
-                index=expense_options.index(expense["type"]) if expense["type"] in expense_options else len(
-                    expense_options) - 1,
-                key=f"edit_type_{idx}"
-            )
+        st.info(f"Editing expense from {e['date']}")
+        new_type = st.selectbox(
+            "Expense Type",
+            expense_options,
+            index=expense_options.index(e["type"]) if e["type"] in expense_options else 0,
+            key="edit_expense_type",
+        )
+        new_description = st.text_input(
+            "Description", value=e["description"], key="edit_expense_desc"
+        )
+        new_amount = st.number_input(
+            "Amount ($)", min_value=0.0, step=0.01, value=float(e["amount"]),
+            key="edit_expense_amount"
+        )
 
-            new_description = st.text_input("Description", value=expense["description"], key=f"edit_description_{idx}")
-            new_amount = st.number_input("Amount ($)", min_value=0.0, step=0.01, value=expense["amount"])
-
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("💾 Save Changes"):
-                    st.session_state.expenses[idx] = {
-                        "date": expense["date"],
-                        "type": new_type,
-                        "description": new_description,
-                        "amount": new_amount
-                    }
-                    st.session_state.pending_changes = True
-                    st.session_state.edit_expense_index = None
-                    st.success("Expense updated.")
-                    rerun()
-            with col2:
-                if st.button("❌ Cancel Edit"):
-                    st.session_state.edit_expense_index = None
-                    rerun()
-        else:
-            # Reset if somehow invalid index remains
-            st.session_state.edit_expense_index = None
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("💾 Save Changes", key="save_expense_edit"):
+                st.session_state.expenses[idx] = {
+                    **e,
+                    "type": new_type,
+                    "description": new_description,
+                    "amount": new_amount,
+                }
+                st.session_state.edit_expense_index = None
+                st.session_state.pending_changes = True
+                st.success("Expense updated.")
+        with c2:
+            if st.button("❌ Cancel Edit", key="cancel_expense_edit"):
+                st.session_state.edit_expense_index = None
 
     if st.session_state.expenses:
         st.markdown("### 📋 Logged Expenses")
