@@ -67,6 +67,30 @@ st.markdown("""
     border: 1px solid rgba(0,0,0,.06);
   }
   #bl-bottom-nav a.active { font-weight: 700; border-color: rgba(0,0,0,.15); }
+  /* Active-state styling for the desktop top nav (we render the active one as disabled) */
+.bl-topnav .stButton > button[disabled]{
+  opacity: 1; 
+  font-weight: 700;
+  border: 1px solid rgba(0,0,0,.25);
+}
+@media (prefers-color-scheme: dark){
+  .bl-topnav .stButton > button[disabled]{
+    border-color: rgba(255,255,255,.25);
+  }
+}
+    /* Stronger highlight for the selected item in the mobile bottom bar */
+#bl-bottom-nav a.active{
+  background: rgba(0,0,0,.06);
+  font-weight: 700;
+  border-color: rgba(0,0,0,.18);
+}
+@media (prefers-color-scheme: dark){
+  #bl-bottom-nav a.active{
+    background: rgba(255,255,255,.10);
+    border-color: rgba(255,255,255,.20);
+  }
+}
+
 }
 </style>
 """, unsafe_allow_html=True)
@@ -592,7 +616,7 @@ if "earnings" not in st.session_state:
     st.session_state.earnings = []
 
 # ---------------------------- Navigation Bar (top) ----------------------------
-st.markdown('<div class="bl-desktop-nav">', unsafe_allow_html=True)
+st.markdown('<div class="bl-desktop-nav bl-topnav">', unsafe_allow_html=True)
 
 nav_cols = st.columns(6)
 nav_buttons = [
@@ -603,18 +627,18 @@ nav_buttons = [
     ("📁\nUpload Files", "upload"),
     ("⚙️\nSettings", "settings"),
 ]
-for col, (label, page_id) in zip(nav_cols, nav_buttons):
+_cur = st.session_state.get("page", "mileage")
+for col, (label, pid) in zip(nav_cols, nav_buttons):
     with col:
-        if st.button(label, use_container_width=True):
-            switch_page(page_id)
+        if pid == _cur:
+            # Show as selected
+            st.button(label, use_container_width=True, disabled=True, key=f"nav_disabled_{pid}")
+        else:
+            if st.button(label, use_container_width=True, key=f"nav_{pid}"):
+                switch_page(pid)
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-
-# Default page
-page_name = st.session_state.page
-
-st.title("🚛 Real Balls Logistics Management")
 
 # ---------------------------- PAGE 1: Mileage + Fuel ----------------------------
 if page_name == "mileage":
