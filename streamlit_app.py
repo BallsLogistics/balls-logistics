@@ -11,7 +11,121 @@ from firebase_config import auth, db, firebase_app  # uses @st.cache_resource in
 if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID"]):
     st.stop()  # prevents half-initialized app from running
 
-st.set_page_config(page_title="🚛 Balls Logistics", layout="centered")
+st.set_page_config(
+    page_title="🚛 Real Balls Logistics",
+    layout="wide",                       # better use of space on desktop/tablet
+    initial_sidebar_state="collapsed"    # mobile-friendly default
+)
+
+# ---------- Responsive helpers & CSS ----------
+def switch_page(page_id: str):
+    st.session_state.page = page_id
+    # keep URL in sync for share/refresh
+    try:
+        st.query_params["page"] = page_id  # Streamlit >=1.33
+    except Exception:
+        st.experimental_set_query_params(page=page_id)
+
+def setup_responsive_and_route():
+    # Read ?page= from URL on first load
+    qp = st.query_params
+    if "page" in qp:
+        st.session_state.page = qp["page"]
+
+    # CSS: layout, bottom nav (mobile), hide/show blocks per breakpoint
+    st.markdown("""
+    <style>
+      /* Container width & gutters */
+      .block-container {
+        max-width: 980px; padding: 0.75rem 1rem 5.5rem; /* bottom pad for bottom nav */
+      }
+      @media (min-width: 1100px) {
+        .block-container { max-width: 1120px; }
+      }
+      @media (max-width: 768px) {
+        .block-container { padding: 0.5rem 0.75rem calc(5.5rem + env(safe-area-inset-bottom)); }
+      }
+
+      /* Touch targets & compact inputs */
+      .stButton button, .stDownloadButton button {
+        min-height: 44px; border-radius: 12px; padding: 0.7rem 1rem;
+      }
+      .stSelectbox, .stNumberInput, .stTextInput {
+        --bl-font: 16px;
+      }
+      .stNumberInput label, .stTextInput label, .stSelectbox label { font-weight: 600; }
+      @media (max-width: 768px) {
+        .stNumberInput label, .stTextInput label, .stSelectbox label { font-size: 0.95rem; }
+        .stNumberInput input, .stTextInput input { font-size: 1rem; }
+      }
+
+      /* Desktop top nav vs. Mobile bottom nav */
+      .bl-desktop-nav { display: block; }
+      .bl-bottom-nav  { display: none; }
+      @media (max-width: 768px) {
+        .bl-desktop-nav { display: none !important; }
+        .bl-bottom-nav  { display: flex; }
+      }
+
+      /* Sticky bottom nav (mobile) */
+      .bl-bottom-nav {
+        position: fixed; left: 0; right: 0; bottom: 0;
+        z-index: 1000;
+        justify-content: space-around; gap: 0;
+        padding: 0.4rem calc(8px + env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-right));
+        backdrop-filter: blur(6px);
+        border-top: 1px solid rgba(0,0,0,.08);
+        background-color: rgba(255,255,255,.85);
+      }
+      .bl-bottom-nav a {
+        flex: 1; text-align: center; text-decoration: none;
+        padding: 0.45rem 0; font-size: 0.80rem; line-height: 1.1;
+        border-radius: 10px;
+        display: flex; flex-direction: column; align-items: center; gap: 2px;
+        color: inherit;
+      }
+      .bl-bottom-nav a .icon { font-size: 1.15rem; }
+      .bl-bottom-nav a.active { font-weight: 700; background: rgba(0,0,0,.05); }
+      @media (prefers-color-scheme: dark) {
+        .bl-bottom-nav { background-color: rgba(30,30,30,.85); border-top-color: rgba(255,255,255,.1); }
+        .bl-bottom-nav a.active { background: rgba(255,255,255,.06); }
+      }
+
+      /* Tables & charts: edge-to-edge on mobile */
+      @media (max-width: 768px) {
+        div[data-testid="stDataFrame"] { margin-left: -4px; margin-right: -4px; }
+      }
+
+      /* Compact metrics tiles on mobile */
+      @media (max-width: 768px) {
+        div[data-testid="stMetricValue"] { font-size: 1.1rem; }
+        div[data-testid="stMetricLabel"] { font-size: 0.85rem; }
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+def mobile_bottom_nav(current: str):
+    # Use anchor links (with ?page=...) so it survives refresh/sharing.
+    def item(page_id, icon, label):
+        active = "active" if current == page_id else ""
+        return f'<a class="{active}" href="?page={page_id}"><div class="icon">{icon}</div><div>{label}</div></a>'
+    st.markdown(
+        f"""
+        <nav class="bl-bottom-nav">
+          {item("mileage", "⛽", "Fuel")}
+          {item("expenses", "💸", "Expenses")}
+          {item("earnings", "💰", "Income")}
+          {item("log", "📜", "Log")}
+          {item("upload", "📁", "Upload")}
+          {item("settings", "⚙️", "Settings")}
+        </nav>
+        """,
+        unsafe_allow_html=True
+    )
+
+setup_responsive_and_route()
+
+
 
 # --- Auth debug + hard logout helpers ---
 def _force_logout():
@@ -136,7 +250,7 @@ if st.session_state.user is None:
 
 # ------------------- AUTH UI -------------------
 if st.session_state.user is None:
-    st.title("🔐 Login to Balls Logistics")
+    st.markdown("### 🔐 Login to Real Balls Logistics")
 
     if hasattr(st, "segmented_control"):
         auth_mode = st.segmented_control(
@@ -448,7 +562,7 @@ st.markdown("### 📄 Generate Printable Report")
 
 if st.button("🖨️ Generate Report Text"):
     report = StringIO()
-    report.write("Balls Logistics Report\n")
+    report.write(" Real Balls Logistics Report\n")
     report.write("=====================\n")
     report.write(f"Baseline Mileage: {st.session_state.baseline}\n")
     report.write(f"Last Mileage: {st.session_state.last_mileage}\n")
@@ -561,24 +675,34 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-nav_cols = st.columns(6)
-nav_buttons = [
-    ("⛽\nFuel", "mileage"),
-    ("💸\nExpenses", "expenses"),
-    ("💰\nIncome", "earnings"),
-    ("📜\nData Log", "log"),
-    ("📁\nUpload Files", "upload"),
-    ("⚙️\nSettings", "settings")
-]
-for col, (label, page_id) in zip(nav_cols, nav_buttons):
-    with col:
-        if st.button(label):
-            st.session_state.page = page_id
+# ---------- Adaptive Navigation ----------
+# Desktop/Tablet: classic top nav (buttons in columns)
+with st.container():
+    st.markdown('<div class="bl-desktop-nav">', unsafe_allow_html=True)
+    nav_cols = st.columns([1,1,1,1,1,1])
+    top_items = [
+        ("⛽ Fuel", "mileage"),
+        ("💸 Expenses", "expenses"),
+        ("💰 Income", "earnings"),
+        ("📜 Data Log", "log"),
+        ("📁 Upload", "upload"),
+        ("⚙️ Settings", "settings"),
+    ]
+    for col, (label, pid) in zip(nav_cols, top_items):
+        with col:
+            if st.button(label, use_container_width=True, key=f"top_{pid}"):
+                switch_page(pid)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Mobile: sticky bottom nav (HTML links)
+page_name = st.session_state.get("page", "mileage")
+mobile_bottom_nav(page_name)
+
 
 # Default page
 page_name = st.session_state.page
 
-st.title("🚛 Real Balls Logistics Management")
+st.markdown("### 🚛 Real Balls Logistics Management")
 
 # ---------------------------- PAGE 1: Mileage + Fuel ----------------------------
 if page_name == "mileage":
