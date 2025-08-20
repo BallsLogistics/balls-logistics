@@ -66,35 +66,17 @@ def setup_responsive_and_route():
 
       /* Desktop top nav vs. Mobile bottom nav */
       .bl-desktop-nav { display: block; }
-      .bl-bottom-nav  { display: none; }
+      
       @media (max-width: 768px) {
         .bl-desktop-nav { display: none !important; }
-        .bl-bottom-nav  { display: flex; }
+        
       }
 
-      /* Sticky bottom nav (mobile) */
-      .bl-bottom-nav {
-        position: fixed; left: 0; right: 0; bottom: 0;
-        z-index: 1000;
-        justify-content: space-around; gap: 0;
-        padding: 0.4rem calc(8px + env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-right));
-        backdrop-filter: blur(6px);
-        border-top: 1px solid rgba(0,0,0,.08);
-        background-color: rgba(255,255,255,.85);
-      }
-      .bl-bottom-nav a {
-        flex: 1; text-align: center; text-decoration: none;
-        padding: 0.45rem 0; font-size: 0.80rem; line-height: 1.1;
-        border-radius: 10px;
-        display: flex; flex-direction: column; align-items: center; gap: 2px;
-        color: inherit;
-      }
-      .bl-bottom-nav a .icon { font-size: 1.15rem; }
-      .bl-bottom-nav a.active { font-weight: 700; background: rgba(0,0,0,.05); }
+      
+      
+      
       @media (prefers-color-scheme: dark) {
-        .bl-bottom-nav { background-color: rgba(30,30,30,.85); border-top-color: rgba(255,255,255,.1); }
-        .bl-bottom-nav a.active { background: rgba(255,255,255,.06); }
-      }
+        
 
       /* Tables & charts: edge-to-edge on mobile */
       @media (max-width: 768px) {
@@ -110,51 +92,65 @@ def setup_responsive_and_route():
     """, unsafe_allow_html=True)
 
 def mobile_bottom_nav(current: str):
-    # Sticky wrapper the buttons live in
+    # 1) Insert an invisible anchor element
+    st.markdown('<span id="bl-nav-anchor"></span>', unsafe_allow_html=True)
+
+    # 2) Render the nav as normal Streamlit widgets
+    with st.container():
+        cols = st.columns(6)
+        items = [
+            ("mileage",  "⛽ Fuel"),
+            ("expenses", "💸 Expenses"),
+            ("earnings", "💰 Income"),
+            ("log",      "📜 Log"),
+            ("upload",   "📁 Upload"),
+            ("settings", "⚙️ Settings"),
+        ]
+        for (pid, label), col in zip(items, cols):
+            with col:
+                active = (current == pid)
+                btn_label = f"**{label}**" if active else label
+                if st.button(btn_label, key=f"mnav_{pid}", use_container_width=True):
+                    switch_page(pid)
+
+    # 3) Make the container that follows the anchor sticky on small screens
     st.markdown("""
     <style>
-      #bl-bottom-holder {
-        position: fixed; left: 0; right: 0; bottom: 0;
-        z-index: 1000;
-        padding: 0.35rem calc(8px + env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-right));
-        backdrop-filter: blur(6px);
-        border-top: 1px solid rgba(0,0,0,.08);
-        background-color: rgba(255,255,255,.85);
+      /* Give the main page some bottom room on mobile so content isn't hidden behind the bar */
+      @media (max-width: 768px) {
+        .block-container {
+          padding-bottom: calc(82px + env(safe-area-inset-bottom));
+        }
       }
-      @media (min-width: 769px) { #bl-bottom-holder { display: none; } }
+
+      /* The Streamlit block that is rendered *immediately after* #bl-nav-anchor */
+      @media (max-width: 768px) {
+        #bl-nav-anchor + div[data-testid="stVerticalBlock"] {
+          position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+          padding: 0.35rem calc(10px + env(safe-area-inset-left)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-right));
+          backdrop-filter: blur(6px);
+          border-top: 1px solid rgba(0,0,0,.08);
+          background: rgba(255,255,255,.88);
+        }
+        #bl-nav-anchor + div[data-testid="stVerticalBlock"] .stButton>button {
+          min-height: 40px; font-size: 0.84rem; line-height: 1.1;
+          border-radius: 12px; padding: 0.45rem 0.25rem;
+        }
+      }
       @media (prefers-color-scheme: dark) {
-        #bl-bottom-holder { background-color: rgba(30,30,30,.85); border-top-color: rgba(255,255,255,.1); }
+        #bl-nav-anchor + div[data-testid="stVerticalBlock"] {
+          background: rgba(30,30,30,.88);
+          border-top-color: rgba(255,255,255,.1);
+        }
       }
-      #bl-bottom-holder .stButton > button {
-        min-height: 40px; font-size: 0.82rem; line-height: 1.1;
-        border-radius: 12px; padding: 0.45rem 0.25rem;
-      }
-      #bl-bottom-holder .active > button { font-weight: 800; background: rgba(0,0,0,.06); }
-      @media (prefers-color-scheme: dark) {
-        #bl-bottom-holder .active > button { background: rgba(255,255,255,.06); }
+
+      /* Hide the sticky bar on tablet/desktop */
+      @media (min-width: 769px) {
+        #bl-nav-anchor, #bl-nav-anchor + div[data-testid="stVerticalBlock"] { display: none; }
       }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div id="bl-bottom-holder">', unsafe_allow_html=True)
-    cols = st.columns(6)
-    items = [
-        ("mileage",  "⛽ Fuel"),
-        ("expenses", "💸 Expenses"),
-        ("earnings", "💰 Income"),
-        ("log",      "📜 Log"),
-        ("upload",   "📁 Upload"),
-        ("settings", "⚙️ Settings"),
-    ]
-    for (pid, label), col in zip(items, cols):
-        with col:
-            # highlight current page
-            container_class = "active" if current == pid else ""
-            st.markdown(f'<div class="{container_class}">', unsafe_allow_html=True)
-            if st.button(label, key=f"mnav_{pid}", use_container_width=True):
-                switch_page(pid)   # <-- soft nav: rerun only, no full reload
-            st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 setup_responsive_and_route()
