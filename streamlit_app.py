@@ -1,20 +1,26 @@
-# streamlit_app.py (top)
+# --- imports ---
 import streamlit as st, json
 from datetime import datetime
 import pandas as pd, altair as alt
 from io import StringIO
 from streamlit_cookies_manager import EncryptedCookieManager
 
+# ✅ MUST be the first Streamlit call
+st.set_page_config(
+    page_title="🚛 Real Balls Logistics",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
-
-
-# Require secrets (dev-friendly message instead of a blank page)
+# Now it's safe to use any other st.* calls.
+# Secrets check (UI can run now because page_config has been set)
 if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID"]):
     st.error("Missing Firebase config. Add FIREBASE_API_KEY and FIREBASE_APP_ID to .streamlit/secrets.toml.")
     st.stop()
 
+# Import AFTER page_config + secrets check
+from firebase_config import auth, db, firebase_app  # uses @st.cache_resource inside
 
-from firebase_config import auth, db, firebase_app  # noqa: F401
 
 
 
