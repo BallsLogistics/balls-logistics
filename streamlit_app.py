@@ -159,8 +159,15 @@ def _force_logout():
         _forget_persisted_user_in_browser()
     except Exception:
         pass
+    # Drop the logout query param so we don't loop
+    try:
+        st.query_params.clear()
+        st.query_params.update({"page": "mileage"})
+    except Exception:
+        st.experimental_set_query_params(page="mileage")
     st.success("Forced logout. Reloading…")
     rerun()
+
 
 # Allow URL-based logout: add ?logout=1 to the URL
 qs = st.query_params           # dict-like
