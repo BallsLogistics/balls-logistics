@@ -36,7 +36,7 @@ def switch_page(page_id: str):
     _set_qp(page=page_id)
 
 def setup_responsive_and_route():
-    # Read ?page= on first load (works across Streamlit versions)
+    # Read ?page= from URL on first load (works across Streamlit versions)
     try:
         qp = st.query_params
     except Exception:
@@ -45,78 +45,96 @@ def setup_responsive_and_route():
         st.session_state.page = qp["page"][0] if isinstance(qp["page"], list) else qp["page"]
 
     st.markdown("""
-    <style>
-      /* Base container sizing */
-      .block-container { max-width: 980px; padding: 0.75rem 1rem 5.5rem; }
-      @media (min-width: 1100px) { .block-container { max-width: 1120px; } }
+<style>
+  /* Container width & gutters */
+  .block-container {
+    max-width: 980px; padding: 0.75rem 1rem 5.5rem;
+  }
+  @media (min-width: 1100px) { .block-container { max-width: 1120px; } }
 
-      /* Touch targets & compact inputs */
-      .stButton button, .stDownloadButton button { min-height: 44px; border-radius: 12px; padding: 0.7rem 1rem; }
-      .stNumberInput label, .stTextInput label, .stSelectbox label { font-weight: 600; }
-      @media (max-width: 768px) {
-        .stNumberInput label, .stTextInput label, .stSelectbox label { font-size: 0.95rem; }
-        .stNumberInput input, .stTextInput input { font-size: 1rem; }
-      }
+  /* Touch targets & compact inputs */
+  .stButton button, .stDownloadButton button {
+    min-height: 44px; border-radius: 12px; padding: 0.7rem 1rem;
+  }
+  .stNumberInput label, .stTextInput label, .stSelectbox label { font-weight: 600; }
+  @media (max-width: 768px) {
+    .stNumberInput label, .stTextInput label, .stSelectbox label { font-size: 0.95rem; }
+    .stNumberInput input, .stTextInput input { font-size: 1rem; }
+  }
 
-      /* Desktop top nav vs. Mobile bottom nav */
-      .bl-desktop-nav { display: block; }
-      @media (max-width: 768px) { .bl-desktop-nav { display: none !important; } }
+  /* Desktop top nav vs. Mobile bottom nav */
+  .bl-desktop-nav { display: block; }
+  @media (max-width: 768px) { .bl-desktop-nav { display: none !important; } }
 
-      /* Tables & charts: edge-to-edge on mobile */
-      @media (max-width: 768px) {
-        div[data-testid="stDataFrame"] { margin-left: -4px; margin-right: -4px; }
-      }
+  /* Tables & charts: edge-to-edge on mobile */
+  @media (max-width: 768px) {
+    div[data-testid="stDataFrame"] { margin-left: -4px; margin-right: -4px; }
+  }
 
-      /* Compact metrics tiles on mobile */
-      @media (max-width: 768px) {
-        div[data-testid="stMetricValue"] { font-size: 1.1rem; }
-        div[data-testid="stMetricLabel"] { font-size: 0.85rem; }
-      }
+  /* Compact metrics tiles on mobile */
+  @media (max-width: 768px) {
+    div[data-testid="stMetricValue"] { font-size: 1.1rem; }
+    div[data-testid="stMetricLabel"] { font-size: 0.85rem; }
+  }
 
-      /* Sticky bottom nav via anchor — robust across Streamlit wrappers */
-      @media (max-width: 768px) {
-        .block-container { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
+  /* === Sticky bottom nav (anchor + sibling selector) === */
+  @media (max-width: 768px) {
+    /* Make room for the fixed bar */
+    .block-container { padding-bottom: calc(82px + env(safe-area-inset-bottom)); }
 
-        /* The nav container is the block immediately after the anchor */
-        #bl-nav-anchor + div[data-testid="stVerticalBlock"],
-        #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
-        #bl-nav-anchor + div {
-          position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
-          padding: 0.35rem calc(10px + env(safe-area-inset-left))
-                   calc(10px + env(safe-area-inset-bottom))
-                   calc(10px + env(safe-area-inset-right));
-          backdrop-filter: blur(6px);
-          -webkit-backdrop-filter: blur(6px);
-          border-top: 1px solid rgba(0,0,0,.08);
-          background: rgba(255,255,255,.88);
-        }
-        #bl-nav-anchor + div .stButton>button {
-          min-height: 40px; font-size: 0.84rem; line-height: 1.1;
-          border-radius: 12px; padding: 0.45rem 0.25rem;
-        }
-      }
+    /* Grab the very next Streamlit wrapper after the anchor */
+    #bl-nav-anchor + div,
+    #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+    #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+    #bl-nav-anchor + div.element-container {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+      padding: 0.35rem calc(10px + env(safe-area-inset-left))
+               calc(10px + env(safe-area-inset-bottom))
+               calc(10px + env(safe-area-inset-right));
+      backdrop-filter: blur(6px);
+      border-top: 1px solid rgba(0,0,0,.08);
+      background: rgba(255,255,255,.88);
+    }
+    /* Button styling inside whichever wrapper matched */
+    #bl-nav-anchor + div .stButton>button,
+    #bl-nav-anchor + div[data-testid="stVerticalBlock"] .stButton>button,
+    #bl-nav-anchor + div[data-testid="stHorizontalBlock"] .stButton>button,
+    #bl-nav-anchor + div.element-container .stButton>button {
+      min-height: 40px; font-size: 0.84rem; line-height: 1.1;
+      border-radius: 12px; padding: 0.45rem 0.25rem;
+    }
+  }
 
-      /* Hide sticky bar on tablet/desktop (prevents duplicates) */
-      @media (min-width: 769px) {
-        #bl-nav-anchor, #bl-nav-anchor + div { display: none; }
-      }
+  /* Hide the mobile bar on tablet/desktop */
+  @media (min-width: 769px) {
+    #bl-nav-anchor,
+    #bl-nav-anchor + div,
+    #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+    #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+    #bl-nav-anchor + div.element-container { display: none; }
+  }
 
-      /* Dark mode for sticky bar */
-      @media (prefers-color-scheme: dark) {
-        #bl-nav-anchor + div {
-          background: rgba(30,30,30,.88);
-          border-top-color: rgba(255,255,255,.1);
-        }
-      }
-    </style>
+  /* Dark mode for sticky bar */
+  @media (prefers-color-scheme: dark) {
+    #bl-nav-anchor + div,
+    #bl-nav-anchor + div[data-testid="stVerticalBlock"],
+    #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
+    #bl-nav-anchor + div.element-container {
+      background: rgba(30,30,30,.88);
+      border-top-color: rgba(255,255,255,.1);
+    }
+  }
+</style>
     """, unsafe_allow_html=True)
+
 
 setup_responsive_and_route()
 
 def mobile_bottom_nav(current: str):
-    # Anchor so CSS can target the *next* block reliably
+    # 1) Anchor
     st.markdown('<span id="bl-nav-anchor"></span>', unsafe_allow_html=True)
 
+    # 2) The nav itself (first container after the anchor)
     with st.container():
         cols = st.columns(6)
         items = [
@@ -133,13 +151,6 @@ def mobile_bottom_nav(current: str):
                 btn_label = f"**{label}**" if active else label
                 if st.button(btn_label, key=f"mnav_{pid}", use_container_width=True):
                     switch_page(pid)
-
-
-
-
-
-
-
 
 # --- Auth debug + hard logout helpers ---
 def _force_logout():
