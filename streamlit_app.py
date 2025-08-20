@@ -578,7 +578,7 @@ for col, (label, page_id) in zip(nav_cols, nav_buttons):
 # Default page
 page_name = st.session_state.page
 
-st.title("🚛 real Balls Logistics Management")
+st.title("🚛 Real Balls Logistics Management")
 
 # ---------------------------- PAGE 1: Mileage + Fuel ----------------------------
 if page_name == "mileage":
