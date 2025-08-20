@@ -11,7 +11,66 @@ from firebase_config import auth, db, firebase_app  # uses @st.cache_resource in
 if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID"]):
     st.stop()  # prevents half-initialized app from running
 
-st.set_page_config(page_title="🚛 Balls Logistics", layout="centered")
+# MUST be the first Streamlit call
+st.set_page_config(page_title="🚛 Balls Logistics", layout="centered", initial_sidebar_state="collapsed")
+
+# --- URL routing helpers (works across Streamlit versions) ---
+def _set_qp(**kwargs):
+    try:
+        st.query_params.update(kwargs)
+    except Exception:
+        st.experimental_set_query_params(**kwargs)
+
+def switch_page(page_id: str):
+    st.session_state.page = page_id
+    _set_qp(page=page_id)
+
+# Read ?page= on first load
+try:
+    _qp = st.query_params
+except Exception:
+    _qp = st.experimental_get_query_params()
+if "page" in _qp:
+    st.session_state.page = _qp["page"][0] if isinstance(_qp["page"], list) else _qp["page"]
+
+# --- Layout & sticky-nav CSS ---
+st.markdown("""
+<style>
+/* Hide top nav on phones, show on tablet/desktop */
+.bl-desktop-nav { display: block; }
+@media (max-width: 768px) { .bl-desktop-nav { display: none !important; } }
+
+/* Give room for the fixed bottom bar on phones */
+@media (max-width: 768px) {
+  .block-container { padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
+}
+
+/* Sticky bottom nav: only on phones */
+#bl-bottom-nav {
+  display: none;
+}
+@media (max-width: 768px) {
+  #bl-bottom-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+    padding: 8px calc(10px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+    background: rgba(255,255,255,.92);
+    backdrop-filter: blur(6px);
+    border-top: 1px solid rgba(0,0,0,.08);
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    #bl-bottom-nav { background: rgba(30,30,30,.88); border-top-color: rgba(255,255,255,.12); }
+  }
+  #bl-bottom-nav a {
+    display: inline-block; text-align: center; text-decoration: none;
+    padding: 10px 4px; border-radius: 12px; font-size: .9rem; line-height: 1.1;
+    border: 1px solid rgba(0,0,0,.06);
+  }
+  #bl-bottom-nav a.active { font-weight: 700; border-color: rgba(0,0,0,.15); }
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # --- Auth debug + hard logout helpers ---
 def _force_logout():
@@ -29,15 +88,7 @@ if "logout" in qs:             # open with ?logout=1 to force the login screen
     _force_logout()
 
 
-# Sidebar debug (you can remove later)
-with st.sidebar.expander("🛠 Auth debug"):
-    st.write({
-        "cookie_ready": "yes" if 'cookies' in globals() and cookies.ready() else "no",
-        "allow_cookie_fallback": st.session_state.get("allow_cookie_fallback"),
-        "has_user": bool(st.session_state.get("user")),
-    })
-    if st.button("Force logout (debug)"):
-        _force_logout()
+
 
 def rerun():
     fn = getattr(st, "rerun", None) or getattr(st, "experimental_rerun", None)
@@ -540,26 +591,8 @@ if "expenses" not in st.session_state:
 if "earnings" not in st.session_state:
     st.session_state.earnings = []
 
-# ---------------------------- Navigation Bar ----------------------------
-st.markdown("""
-    <style>
-        div[data-testid=\"stHorizontalBlock\"] > div {
-            
-        }
-        button[kind=\"secondary\"] {
-            padding: 1.5em 2em;
-            font-size: 1.2em;
-            width: 100%;
-            white-space: nowrap;
-        }
-        input[type=\"number\"]:focus::placeholder {
-            color: transparent;
-        }
-        .input-invalid input {
-            border: 2px solid red;
-        }
-    </style>
-""", unsafe_allow_html=True)
+# ---------------------------- Navigation Bar (top) ----------------------------
+st.markdown('<div class="bl-desktop-nav">', unsafe_allow_html=True)
 
 nav_cols = st.columns(6)
 nav_buttons = [
@@ -568,12 +601,15 @@ nav_buttons = [
     ("💰\nIncome", "earnings"),
     ("📜\nData Log", "log"),
     ("📁\nUpload Files", "upload"),
-    ("⚙️\nSettings", "settings")
+    ("⚙️\nSettings", "settings"),
 ]
 for col, (label, page_id) in zip(nav_cols, nav_buttons):
     with col:
-        if st.button(label):
-            st.session_state.page = page_id
+        if st.button(label, use_container_width=True):
+            switch_page(page_id)
+
+st.markdown('</div>', unsafe_allow_html=True)
+
 
 # Default page
 page_name = st.session_state.page
@@ -899,3 +935,15 @@ elif page_name == "settings":
             st.markdown("<script>window.location.reload();</script>", unsafe_allow_html=True)
 
 
+# ---------------------------- Mobile sticky bottom nav ----------------------------
+_current = st.session_state.get("page", "mileage")
+st.markdown(f"""
+<div id="bl-bottom-nav">
+  <a href="?page=mileage"  class="{'active' if _current=='mileage'  else ''}">⛽ Fuel</a>
+  <a href="?page=expenses" class="{'active' if _current=='expenses' else ''}">💸 Expenses</a>
+  <a href="?page=earnings" class="{'active' if _current=='earnings' else ''}">💰 Income</a>
+  <a href="?page=log"      class="{'active' if _current=='log'      else ''}">📜 Log</a>
+  <a href="?page=upload"   class="{'active' if _current=='upload'   else ''}">📁 Upload</a>
+  <a href="?page=settings" class="{'active' if _current=='settings' else ''}">⚙️ Settings</a>
+</div>
+""", unsafe_allow_html=True)
