@@ -1,171 +1,17 @@
-# --- imports ---
+# streamlit_app.py (top)
 import streamlit as st, json
 from datetime import datetime
 import pandas as pd, altair as alt
 from io import StringIO
 from streamlit_cookies_manager import EncryptedCookieManager
-
-# ✅ MUST be the first Streamlit call
-st.set_page_config(
-    page_title="🚛 Real Balls Logistics",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-# Now it's safe to use any other st.* calls.
-# Secrets check (UI can run now because page_config has been set)
-if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID"]):
-    st.error("Missing Firebase config. Add FIREBASE_API_KEY and FIREBASE_APP_ID to .streamlit/secrets.toml.")
-    st.stop()
-
-# Import AFTER page_config + secrets check
 from firebase_config import auth, db, firebase_app  # uses @st.cache_resource inside
 
 
 
+if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID"]):
+    st.stop()  # prevents half-initialized app from running
 
-st.set_page_config(
-    page_title="🚛 Real Balls Logistics",
-    layout="wide",                       # better use of space on desktop/tablet
-    initial_sidebar_state="collapsed"    # mobile-friendly default
-)
-
-# ---------- Responsive helpers & CSS ----------
-def _set_qp(**kwargs):
-    try:
-        st.query_params.update(kwargs)
-    except Exception:
-        st.experimental_set_query_params(**kwargs)
-
-def switch_page(page_id: str):
-    st.session_state.page = page_id
-    _set_qp(page=page_id)
-
-def setup_responsive_and_route():
-    # Read ?page= from URL on first load (works across Streamlit versions)
-    try:
-        qp = st.query_params
-    except Exception:
-        qp = st.experimental_get_query_params()
-    if "page" in qp:
-        st.session_state.page = qp["page"][0] if isinstance(qp["page"], list) else qp["page"]
-
-    st.markdown("""
-<style>
-  /* Container width & gutters */
-  .block-container {
-    max-width: 980px; padding: 0.75rem 1rem 5.5rem;
-  }
-  @media (min-width: 1100px) { .block-container { max-width: 1120px; } }
-
-  /* Touch targets & compact inputs */
-  .stButton button, .stDownloadButton button {
-    min-height: 44px; border-radius: 12px; padding: 0.7rem 1rem;
-  }
-  .stNumberInput label, .stTextInput label, .stSelectbox label { font-weight: 600; }
-  @media (max-width: 768px) {
-    .stNumberInput label, .stTextInput label, .stSelectbox label { font-size: 0.95rem; }
-    .stNumberInput input, .stTextInput input { font-size: 1rem; }
-  }
-
-  /* Desktop top nav vs. Mobile bottom nav */
-  .bl-desktop-nav { display: block; }
-  @media (max-width: 768px) { .bl-desktop-nav { display: none !important; } }
-
-  /* Tables & charts: edge-to-edge on mobile */
-  @media (max-width: 768px) {
-    div[data-testid="stDataFrame"] { margin-left: -4px; margin-right: -4px; }
-  }
-
-  /* Compact metrics tiles on mobile */
-  @media (max-width: 768px) {
-    div[data-testid="stMetricValue"] { font-size: 1.1rem; }
-    div[data-testid="stMetricLabel"] { font-size: 0.85rem; }
-  }
-
-  /* === Sticky bottom nav (anchor + sibling selector) === */
-  @media (max-width: 768px) {
-    /* Make room for the fixed bar */
-    .block-container {
-      padding-bottom: calc(82px + env(safe-area-inset-bottom));
-      /* Legacy iOS */
-      padding-bottom: calc(82px + constant(safe-area-inset-bottom));
-    }
-
-    /* Grab the first Streamlit wrapper after the anchor */
-    #bl-nav-anchor + div,
-    #bl-nav-anchor + div[data-testid="stVerticalBlock"],
-    #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
-    #bl-nav-anchor + div.element-container {
-      position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
-      padding: 0.35rem calc(10px + env(safe-area-inset-left))
-               calc(10px + env(safe-area-inset-bottom))
-               calc(10px + env(safe-area-inset-right));
-      /* Legacy iOS safe-area fallback */
-      padding: 0.35rem calc(10px + constant(safe-area-inset-left))
-               calc(10px + constant(safe-area-inset-bottom))
-               calc(10px + constant(safe-area-inset-right));
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px); /* iOS Safari */
-      border-top: 1px solid rgba(0,0,0,.08);
-      background: rgba(255,255,255,.88);
-    }
-
-    /* Buttons inside the sticky wrapper */
-    #bl-nav-anchor + div .stButton>button,
-    #bl-nav-anchor + div[data-testid="stVerticalBlock"] .stButton>button,
-    #bl-nav-anchor + div[data-testid="stHorizontalBlock"] .stButton>button,
-    #bl-nav-anchor + div.element-container .stButton>button {
-      min-height: 40px; font-size: 0.84rem; line-height: 1.1;
-      border-radius: 12px; padding: 0.45rem 0.25rem;
-    }
-  }
-
-  /* Hide the mobile bar on tablet/desktop */
-  @media (min-width: 769px) {
-    #bl-nav-anchor,
-    #bl-nav-anchor + div,
-    #bl-nav-anchor + div[data-testid="stVerticalBlock"],
-    #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
-    #bl-nav-anchor + div.element-container { display: none; }
-  }
-
-  /* Dark mode for sticky bar */
-  @media (prefers-color-scheme: dark) {
-    #bl-nav-anchor + div,
-    #bl-nav-anchor + div[data-testid="stVerticalBlock"],
-    #bl-nav-anchor + div[data-testid="stHorizontalBlock"],
-    #bl-nav-anchor + div.element-container {
-      background: rgba(30,30,30,.88);
-      border-top-color: rgba(255,255,255,.1);
-    }
-  }
-</style>
-    """, unsafe_allow_html=True)
-
-setup_responsive_and_route()
-
-def mobile_bottom_nav(current: str):
-    # 1) Anchor
-    st.markdown('<span id="bl-nav-anchor"></span>', unsafe_allow_html=True)
-
-    # 2) The nav itself (first container after the anchor)
-    with st.container():
-        cols = st.columns(6)
-        items = [
-            ("mileage",  "⛽ Fuel"),
-            ("expenses", "💸 Expenses"),
-            ("earnings", "💰 Income"),
-            ("log",      "📜 Log"),
-            ("upload",   "📁 Upload"),
-            ("settings", "⚙️ Settings"),
-        ]
-        for (pid, label), col in zip(items, cols):
-            with col:
-                active = (current == pid)
-                btn_label = f"**{label}**" if active else label
-                if st.button(btn_label, key=f"mnav_{pid}", use_container_width=True):
-                    switch_page(pid)
+st.set_page_config(page_title="🚛 Balls Logistics", layout="centered")
 
 # --- Auth debug + hard logout helpers ---
 def _force_logout():
@@ -174,15 +20,8 @@ def _force_logout():
         _forget_persisted_user_in_browser()
     except Exception:
         pass
-    # Drop the logout query param so we don't loop
-    try:
-        st.query_params.clear()
-        st.query_params.update({"page": "mileage"})
-    except Exception:
-        st.experimental_set_query_params(page="mileage")
     st.success("Forced logout. Reloading…")
     rerun()
-
 
 # Allow URL-based logout: add ?logout=1 to the URL
 qs = st.query_params           # dict-like
@@ -190,7 +29,15 @@ if "logout" in qs:             # open with ?logout=1 to force the login screen
     _force_logout()
 
 
-
+# Sidebar debug (you can remove later)
+with st.sidebar.expander("🛠 Auth debug"):
+    st.write({
+        "cookie_ready": "yes" if 'cookies' in globals() and cookies.ready() else "no",
+        "allow_cookie_fallback": st.session_state.get("allow_cookie_fallback"),
+        "has_user": bool(st.session_state.get("user")),
+    })
+    if st.button("Force logout (debug)"):
+        _force_logout()
 
 def rerun():
     fn = getattr(st, "rerun", None) or getattr(st, "experimental_rerun", None)
@@ -289,7 +136,7 @@ if st.session_state.user is None:
 
 # ------------------- AUTH UI -------------------
 if st.session_state.user is None:
-    st.markdown("### 🔐 Login to Real Balls Logistics")
+    st.title("🔐 Login to Balls Logistics")
 
     if hasattr(st, "segmented_control"):
         auth_mode = st.segmented_control(
@@ -601,7 +448,7 @@ st.markdown("### 📄 Generate Printable Report")
 
 if st.button("🖨️ Generate Report Text"):
     report = StringIO()
-    report.write(" Real Balls Logistics Report\n")
+    report.write("Balls Logistics Report\n")
     report.write("=====================\n")
     report.write(f"Baseline Mileage: {st.session_state.baseline}\n")
     report.write(f"Last Mileage: {st.session_state.last_mileage}\n")
@@ -628,16 +475,11 @@ st.markdown("""
     <style>
     .block-container {
         padding-top: 1rem;
+        padding-bottom: 3rem;
         padding-left: 1rem;
         padding-right: 1rem;
         max-width: 800px;
     }
-    /* Keep 3rem bottom padding ONLY on desktop/tablet.
-       Mobile bottom padding comes from the sticky-nav CSS earlier. */
-    @media (min-width: 769px) {
-      .block-container { padding-bottom: 3rem; }
-    }
-    
     @media screen and (max-width: 600px) {
         .block-container {
             padding-left: 0.5rem;
@@ -698,32 +540,45 @@ if "expenses" not in st.session_state:
 if "earnings" not in st.session_state:
     st.session_state.earnings = []
 
+# ---------------------------- Navigation Bar ----------------------------
+st.markdown("""
+    <style>
+        div[data-testid=\"stHorizontalBlock\"] > div {
+            
+        }
+        button[kind=\"secondary\"] {
+            padding: 1.5em 2em;
+            font-size: 1.2em;
+            width: 100%;
+            white-space: nowrap;
+        }
+        input[type=\"number\"]:focus::placeholder {
+            color: transparent;
+        }
+        .input-invalid input {
+            border: 2px solid red;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-# ---------- Adaptive Navigation ----------
-# Desktop/Tablet: classic top nav (buttons in columns)
-with st.container():
-    st.markdown('<div class="bl-desktop-nav">', unsafe_allow_html=True)
-    nav_cols = st.columns([1,1,1,1,1,1])
-    top_items = [
-        ("⛽ Fuel", "mileage"),
-        ("💸 Expenses", "expenses"),
-        ("💰 Income", "earnings"),
-        ("📜 Data Log", "log"),
-        ("📁 Upload", "upload"),
-        ("⚙️ Settings", "settings"),
-    ]
-    for col, (label, pid) in zip(nav_cols, top_items):
-        with col:
-            if st.button(label, use_container_width=True, key=f"top_{pid}"):
-                switch_page(pid)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
+nav_cols = st.columns(6)
+nav_buttons = [
+    ("⛽\nFuel", "mileage"),
+    ("💸\nExpenses", "expenses"),
+    ("💰\nIncome", "earnings"),
+    ("📜\nData Log", "log"),
+    ("📁\nUpload Files", "upload"),
+    ("⚙️\nSettings", "settings")
+]
+for col, (label, page_id) in zip(nav_cols, nav_buttons):
+    with col:
+        if st.button(label):
+            st.session_state.page = page_id
 
 # Default page
 page_name = st.session_state.page
 
-st.markdown("### 🚛 Real Balls Logistics Management")
+st.title("🚛 Real Balls Logistics Management")
 
 # ---------------------------- PAGE 1: Mileage + Fuel ----------------------------
 if page_name == "mileage":
@@ -864,41 +719,44 @@ elif page_name == "expenses":
     if "edit_expense_index" not in st.session_state:
         st.session_state.edit_expense_index = None
 
-    # --- Edit expense form (shows after you click ✏️) ---
-    idx = st.session_state.get("edit_expense_index")
-    if isinstance(idx, int) and 0 <= idx < len(st.session_state.expenses):
-        e = st.session_state.expenses[idx]
+    # Show edit form if index is set and still valid
+    if st.session_state.edit_expense_index is not None:
+        idx = st.session_state.edit_expense_index
+        if 0 <= idx < len(st.session_state.expenses):
+            expense = st.session_state.expenses[idx]
 
-        st.info(f"Editing expense from {e['date']}")
-        new_type = st.selectbox(
-            "Expense Type",
-            expense_options,
-            index=expense_options.index(e["type"]) if e["type"] in expense_options else 0,
-            key="edit_expense_type",
-        )
-        new_description = st.text_input(
-            "Description", value=e["description"], key="edit_expense_desc"
-        )
-        new_amount = st.number_input(
-            "Amount ($)", min_value=0.0, step=0.01, value=float(e["amount"]),
-            key="edit_expense_amount"
-        )
+            st.info(f"Editing expense from {expense['date']}")
+            new_type = st.selectbox(
+                "Expense Type",
+                expense_options,
+                index=expense_options.index(expense["type"]) if expense["type"] in expense_options else len(
+                    expense_options) - 1,
+                key=f"edit_type_{idx}"
+            )
 
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("💾 Save Changes", key="save_expense_edit"):
-                st.session_state.expenses[idx] = {
-                    **e,
-                    "type": new_type,
-                    "description": new_description,
-                    "amount": new_amount,
-                }
-                st.session_state.edit_expense_index = None
-                st.session_state.pending_changes = True
-                st.success("Expense updated.")
-        with c2:
-            if st.button("❌ Cancel Edit", key="cancel_expense_edit"):
-                st.session_state.edit_expense_index = None
+            new_description = st.text_input("Description", value=expense["description"], key=f"edit_description_{idx}")
+            new_amount = st.number_input("Amount ($)", min_value=0.0, step=0.01, value=expense["amount"])
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("💾 Save Changes"):
+                    st.session_state.expenses[idx] = {
+                        "date": expense["date"],
+                        "type": new_type,
+                        "description": new_description,
+                        "amount": new_amount
+                    }
+                    st.session_state.pending_changes = True
+                    st.session_state.edit_expense_index = None
+                    st.success("Expense updated.")
+                    rerun()
+            with col2:
+                if st.button("❌ Cancel Edit"):
+                    st.session_state.edit_expense_index = None
+                    rerun()
+        else:
+            # Reset if somehow invalid index remains
+            st.session_state.edit_expense_index = None
 
     if st.session_state.expenses:
         st.markdown("### 📋 Logged Expenses")
@@ -1039,13 +897,5 @@ elif page_name == "settings":
                 del st.session_state[key]
             _forget_persisted_user_in_browser()
             st.markdown("<script>window.location.reload();</script>", unsafe_allow_html=True)
-
-
-# ... your pages code ends here ...
-
-# Always call after page content so the sticky bar sits above everything
-page_name = st.session_state.get("page", "mileage")
-mobile_bottom_nav(page_name)
-
 
 
