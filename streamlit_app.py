@@ -36,6 +36,14 @@ if "page" in _qp:
 # --- Layout & sticky-nav CSS ---
 st.markdown("""
 <style>
+    /* Don't show the big main-area Logout on phones; sticky bar has one */
+    @media (max-width: 768px){
+        .bl-main-logout { display: none !important; }
+    }
+    /* Ensure the sticky bar always catches taps (no click-through on gaps) */
+    #bl-bottom-nav { pointer-events: auto; }
+    #bl-bottom-nav * { pointer-events: auto; }
+    
     /* Show desktop top nav, hide it on phones */
     .bl-desktop-nav { display: block; }
     @media (max-width: 768px) { .bl-desktop-nav { display: none !important; } }
@@ -294,7 +302,9 @@ if st.session_state.get("allow_cookie_fallback"):
 
 
 # Put a visible Logout button in the main area (mobile-safe and full width)
+st.markdown('<div class="bl-main-logout">', unsafe_allow_html=True)
 st.button("🚪 Logout", key="logout_main", use_container_width=True, on_click=logout)
+st.markdown('</div>', unsafe_allow_html=True)
 st.caption("Session active")
 
 
@@ -965,5 +975,6 @@ st.markdown(f"""
   <a href="?page=log"      class="{'active' if _current=='log'      else ''}">📜 Log</a>
   <a href="?page=upload"   class="{'active' if _current=='upload'   else ''}">📁 Upload</a>
   <a href="?page=settings" class="{'active' if _current=='settings' else ''}">⚙️ Settings</a>
+  <a href="?logout=1"      class="">🚪 Logout</a>
 </div>
 """, unsafe_allow_html=True)
