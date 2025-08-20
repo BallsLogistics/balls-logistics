@@ -36,63 +36,55 @@ if "page" in _qp:
 # --- Layout & sticky-nav CSS ---
 st.markdown("""
 <style>
-/* Hide top nav on phones, show on tablet/desktop */
-.bl-desktop-nav { display: block; }
-@media (max-width: 768px) { .bl-desktop-nav { display: none !important; } }
-
-/* Give room for the fixed bottom bar on phones */
-@media (max-width: 768px) {
-  .block-container { padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
-}
-
-/* Sticky bottom nav: only on phones */
-#bl-bottom-nav {
-  display: none;
-}
-@media (max-width: 768px) {
-  #bl-bottom-nav {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
-    padding: 8px calc(10px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
-    background: rgba(255,255,255,.92);
-    backdrop-filter: blur(6px);
-    border-top: 1px solid rgba(0,0,0,.08);
-    display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
-  }
-  @media (prefers-color-scheme: dark) {
-    #bl-bottom-nav { background: rgba(30,30,30,.88); border-top-color: rgba(255,255,255,.12); }
-  }
-  #bl-bottom-nav a {
-    display: inline-block; text-align: center; text-decoration: none;
-    padding: 10px 4px; border-radius: 12px; font-size: .9rem; line-height: 1.1;
-    border: 1px solid rgba(0,0,0,.06);
-  }
-  #bl-bottom-nav a.active { font-weight: 700; border-color: rgba(0,0,0,.15); }
-  /* Active-state styling for the desktop top nav (we render the active one as disabled) */
-.bl-topnav .stButton > button[disabled]{
-  opacity: 1; 
-  font-weight: 700;
-  border: 1px solid rgba(0,0,0,.25);
-}
-@media (prefers-color-scheme: dark){
-  .bl-topnav .stButton > button[disabled]{
-    border-color: rgba(255,255,255,.25);
-  }
-}
-    /* Stronger highlight for the selected item in the mobile bottom bar */
-#bl-bottom-nav a.active{
-  background: rgba(0,0,0,.06);
-  font-weight: 700;
-  border-color: rgba(0,0,0,.18);
-}
-@media (prefers-color-scheme: dark){
-  #bl-bottom-nav a.active{
-    background: rgba(255,255,255,.10);
-    border-color: rgba(255,255,255,.20);
-  }
-}
-
-}
+    /* Show desktop top nav, hide it on phones */
+    .bl-desktop-nav { display: block; }
+    @media (max-width: 768px) { .bl-desktop-nav { display: none !important; } }
+    
+    /* Give room for a fixed bottom bar on phones */
+    @media (max-width: 768px) {
+      .block-container { padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
+    }
+    
+    /* Active-state styling for the desktop top nav (we render the active one as disabled) */
+    .bl-topnav .stButton > button[disabled]{
+      opacity: 1;
+      font-weight: 700;
+      border: 1px solid rgba(0,0,0,.25);
+    }
+    @media (prefers-color-scheme: dark){
+      .bl-topnav .stButton > button[disabled]{ border-color: rgba(255,255,255,.25); }
+    }
+    
+    /* Sticky bottom nav (mobile only) */
+    #bl-bottom-nav { display: none; }
+    @media (max-width: 768px) {
+      #bl-bottom-nav {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+        padding: 8px calc(10px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+        background: rgba(255,255,255,.92);
+        backdrop-filter: blur(6px);
+        border-top: 1px solid rgba(0,0,0,.08);
+        display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+      }
+      #bl-bottom-nav a {
+        display: inline-block; text-align: center; text-decoration: none;
+        padding: 10px 4px; border-radius: 12px; font-size: .9rem; line-height: 1.1;
+        border: 1px solid rgba(0,0,0,.06);
+      }
+      #bl-bottom-nav a.active {
+        background: rgba(0,0,0,.06);
+        font-weight: 700;
+        border-color: rgba(0,0,0,.18);
+      }
+    }
+    
+    /* Dark mode for the mobile bar */
+    @media (max-width: 768px) and (prefers-color-scheme: dark){
+      #bl-bottom-nav { background: rgba(30,30,30,.88); border-top-color: rgba(255,255,255,.12); }
+      #bl-bottom-nav a.active { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.20); }
+    }
 </style>
+
 """, unsafe_allow_html=True)
 
 
@@ -641,6 +633,10 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ---------------------------- PAGE 1: Mileage + Fuel ----------------------------
+# Default page (MUST be set before the page sections)
+page_name = st.session_state.get("page", "mileage")
+st.title("🚛 Real Balls Logistics Management")
+
 if page_name == "mileage":
     with st.container():
         st.subheader("📍 Baseline Mileage")
