@@ -757,55 +757,48 @@ elif page == "settings":
         for e in st.session_state.earnings:
             lines.append(
                 f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}")
-        return "\n".join(lines)
+        return "
+".join(lines)
 
-# Guard: render the Quick Report UI only on the Settings page
-if page == "settings":
-    if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
-        txt = _build_quick_report()
-        st.text_area("Report", txt, height=260, key="report_txt_settings")
-        st.download_button(
-            "💾 Download .txt",
-            txt,
-            file_name="balls_logistics_report.txt",
-            use_container_width=True,
-            key="dl_report_settings",
-        )
-
+if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
+    txt = _build_quick_report()
+    st.text_area("Report", txt, height=260, key="report_txt_settings")
+    st.download_button("💾 Download .txt", txt, file_name="balls_logistics_report.txt", use_container_width=True,
+                       key="dl_report_settings")
 
 # ------------------------- Statistics (bottom compact block) -------------------------
-st.markdown("---")
-st.markdown("### 📊 Statistics")
-if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
-    avg_mpg = st.session_state.total_miles / st.session_state.total_gallons
-    avg_cpm = st.session_state.total_cost / st.session_state.total_miles if st.session_state.total_miles else 0
-    c1, c2 = st.columns(2, gap="small")
-    with c1:
-        st.metric("Avg MPG", f"{avg_mpg:.2f}")
-    with c2:
-        st.metric("Avg $/mi", f"${avg_cpm:.2f}")
+if page == "mileage":
+    st.markdown("---")
+    st.markdown("### 📊 Statistics")
+    if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
+        avg_mpg = st.session_state.total_miles / st.session_state.total_gallons
+        avg_cpm = st.session_state.total_cost / st.session_state.total_miles if st.session_state.total_miles else 0
+        c1, c2 = st.columns(2, gap="small")
+        with c1:
+            st.metric("Avg MPG", f"{avg_mpg:.2f}")
+        with c2:
+            st.metric("Avg $/mi", f"${avg_cpm:.2f}")
 
-    mpg_data = [
-        {"Date": e["timestamp"], "MPG": e["mpg"]}
-        for e in st.session_state.log if e.get("type") == "Trip" and e.get("mpg") is not None
-    ]
-    if mpg_data:
-        mpg_df = pd.DataFrame(mpg_data)
-        st.altair_chart(
-            alt.Chart(mpg_df).mark_line(point=True).encode(x="Date:T", y="MPG:Q").properties(title="MPG per Trip",
-                                                                                             height=160),
-            use_container_width=True,
-        )
+        mpg_data = [
+            {"Date": e["timestamp"], "MPG": e["mpg"]}
+            for e in st.session_state.log if e.get("type") == "Trip" and e.get("mpg") is not None
+        ]
+        if mpg_data:
+            mpg_df = pd.DataFrame(mpg_data)
+            st.altair_chart(
+                alt.Chart(mpg_df).mark_line(point=True).encode(x="Date:T", y="MPG:Q").properties(title="MPG per Trip",
+                                                                                                 height=160),
+                use_container_width=True,
+            )
 
-    if st.session_state.expenses:
-        df_exp = pd.DataFrame(st.session_state.expenses)
-        df_exp = df_exp.groupby("type")["amount"].sum().reset_index()
-        st.altair_chart(
-            alt.Chart(df_exp).mark_arc().encode(theta="amount", color="type", tooltip=["type", "amount"]).properties(
-                title="Expenses by Category", height=180),
-            use_container_width=True,
-        )
-else:
-    st.caption("Add trips to see stats.")
-
-
+        if st.session_state.expenses:
+            df_exp = pd.DataFrame(st.session_state.expenses)
+            df_exp = df_exp.groupby("type")["amount"].sum().reset_index()
+            st.altair_chart(
+                alt.Chart(df_exp).mark_arc().encode(theta="amount", color="type",
+                                                    tooltip=["type", "amount"]).properties(title="Expenses by Category",
+                                                                                           height=180),
+                use_container_width=True,
+            )
+    else:
+        st.caption("Add trips to see stats.")
