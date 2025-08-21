@@ -351,65 +351,55 @@ NAV = [
     ("settings", "⚙️ Settings"),
 ]
 
-# HTML-based 3×2 nav (anchors) — rock-solid on iPhone Safari
-# Sync page from query param if present
-_qp_page = st.query_params.get("page")
-if isinstance(_qp_page, (list, tuple)):
-    _qp_page = _qp_page[0] if _qp_page else None
-if _qp_page in [k for k, _ in NAV]:
-    st.session_state.page = _qp_page
-
-_active = st.session_state.page
-
-# === SIMPLE, RELIABLE NAV (no sticky, no hidden controls) ===
-# Build an anchor grid that navigates in the SAME TAB
-_nav_items = []
-for k, label in NAV:
-    cls = "nav-btn active" if _active == k else "nav-btn"
-    if _active == k:
-        _nav_items.append(f'<span class="{cls}">{label}</span>')
-    else:
-        _nav_items.append(f'<a class="{cls}" href="?page={k}" target="_self" rel="noopener">{label}</a>')
-
-# Render grid at the top area (non-sticky for iOS reliability)
+# Pure Streamlit 3×2 grid (no anchors, no URL changes, no page reload)
 st.markdown(
     """
     <style>
-      .nav-table { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; margin:.25rem 0 .5rem; }
-      .nav-btn { display:inline-flex; align-items:center; justify-content:center; text-align:center; padding:.6rem .7rem; min-height:44px; border-radius:.8rem; text-decoration:none; border:1px solid #e5e7eb; background:#ffffff; color:inherit; }
-      .nav-btn.active { background:#2563eb; color:#ffffff; border-color:#2563eb; pointer-events:none; }
-      @media (prefers-color-scheme: dark) {
-        .nav-btn { background:#111827; border-color:#374151; color:#e5e7eb; }
-        .nav-btn.active { background:#3b82f6; border-color:#3b82f6; color:#ffffff; }
+      /* Highlight the active (disabled) nav button */
+      .nav-grid [data-testid="stButton"] button:disabled {
+        background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; opacity:1 !important;
+      }
+      .nav-grid [data-testid="stButton"] button:not(:disabled){ background:#fff; border:1px solid #e5e7eb; }
+      @media (prefers-color-scheme: dark){
+        .nav-grid [data-testid="stButton"] button:not(:disabled){ background:#111827; border-color:#374151; color:#e5e7eb; }
+        .nav-grid [data-testid="stButton"] button:disabled{ background:#3b82f6 !important; border-color:#3b82f6 !important; color:#fff !important; }
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="nav-table">' + "".join(_nav_items) + '</div>', unsafe_allow_html=True)
+st.markdown('<div class="nav-grid">', unsafe_allow_html=True)
+# Row 1
+c1, c2, c3 = st.columns(3, gap="small")
+with c1:
+    st.button("⛽ Fuel", key="nav_mileage", use_container_width=True,
+              disabled=(st.session_state.page=="mileage"),
+              on_click=lambda: st.session_state.update(page="mileage"))
+with c2:
+    st.button("💸 Expenses", key="nav_expenses", use_container_width=True,
+              disabled=(st.session_state.page=="expenses"),
+              on_click=lambda: st.session_state.update(page="expenses"))
+with c3:
+    st.button("💰 Income", key="nav_earnings", use_container_width=True,
+              disabled=(st.session_state.page=="earnings"),
+              on_click=lambda: st.session_state.update(page="earnings"))
+# Row 2
+c4, c5, c6 = st.columns(3, gap="small")
+with c4:
+    st.button("📜 Log", key="nav_log", use_container_width=True,
+              disabled=(st.session_state.page=="log"),
+              on_click=lambda: st.session_state.update(page="log"))
+with c5:
+    st.button("📁 Files", key="nav_upload", use_container_width=True,
+              disabled=(st.session_state.page=="upload"),
+              on_click=lambda: st.session_state.update(page="upload"))
+with c6:
+    st.button("⚙️ Settings", key="nav_settings", use_container_width=True,
+              disabled=(st.session_state.page=="settings"),
+              on_click=lambda: st.session_state.update(page="settings"))
 
-# Ensure same-tab navigation on iOS — override any sanitizer adding _blank
-st.markdown(
-    """
-    <script>
-      (function(){
-        function wireSameTab(){
-          document.querySelectorAll('.nav-table a.nav-btn').forEach(a => {
-            a.setAttribute('target','_self');
-            a.addEventListener('click', function(e){
-              // Force same-tab navigation
-              this.target = '_self';
-            });
-          });
-        }
-        document.addEventListener('DOMContentLoaded', wireSameTab);
-        setTimeout(wireSameTab, 250);
-      })();
-    </script>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown('</div>', unsafe_allow_html=True)
 
 page = st.session_state.page
 st.title("🚛 Balls Logistics")
