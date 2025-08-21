@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 from firebase_config import auth, db, firebase_app  # uses @st.cache_resource inside
 from streamlit_cookies_manager import EncryptedCookieManager
-st.caption("Nav grid R4")
+
 # ------------------------- Page & Global Styles -------------------------
 st.set_page_config(
     page_title="🚛 Balls Logistics",
@@ -16,7 +16,8 @@ st.set_page_config(
     layout="wide",  # use full width; we'll constrain with CSS
     initial_sidebar_state="collapsed",
 )
-
+# Debug marker to confirm new build loaded
+st.caption("Nav grid R4")
 st.markdown(
     """
     <style>
