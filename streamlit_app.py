@@ -20,11 +20,15 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+      /* Global reset to avoid sideways overflow on iPhone */
+      * { box-sizing: border-box; }
+      html, body { max-width: 100%; overflow-x: hidden; touch-action: pan-y; }
+      [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data-testid="stToolbar"] { overflow-x: hidden; }
       /* Base scale down; tighten paddings; mobile-first tweaks */
       :root { --scale: .90; }
       html, body, [data-testid="stAppViewContainer"] { font-size: calc(16px * var(--scale)); }
 
-      .block-container { padding: .6rem .6rem 2rem; max-width: 720px; }
+      .block-container { padding: .6rem .6rem 2rem; max-width: 720px; width: 100%; margin: 0 auto; }
       .stButton button, .stDownloadButton button { padding: .45rem .7rem; font-size: .92rem; border-radius: .6rem; }
       .stTextInput input, .stNumberInput input { height: 36px; font-size: .95rem; }
       [data-testid="stMetric"] { padding: .25rem .5rem; }
@@ -36,6 +40,10 @@ st.markdown(
       .nav-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.45rem .6rem; border:1px solid var(--accent,#ddd); border-radius:.75rem; margin-right:.4rem; cursor:pointer; font-size:.95rem; background: white; }
       .nav-chip.active { background: #eff6ff; border-color:#93c5fd; }
       .nav-bar { overflow-x:auto; white-space:nowrap; padding-bottom:.25rem; margin-bottom:.35rem; }
+
+      /* Media elements & charts never overflow */
+      img, svg, canvas, video { max-width: 100%; height: auto; display: block; }
+      [data-testid="stHorizontalBlock"], [data-testid="stColumns"], .element-container { overflow-x: hidden; max-width: 100%; }
 
       /* Inputs: remove number spinners */
       input[type=number]::-webkit-outer-spin-button,
@@ -50,6 +58,11 @@ st.markdown(
       /* Mobile breakpoint */
       @media (max-width: 430px) {
         :root { --scale: .84; }
+        .block-container { max-width: 520px; padding:.5rem .5rem 2rem; }
+        .stButton button, .stDownloadButton button { padding:.4rem .55rem; font-size:.88rem; }
+        .stTextInput input, .stNumberInput input { height: 34px; font-size:.9rem; }
+      }
+    </style>
         .block-container { max-width: 520px; padding:.5rem .5rem 2rem; }
         .stButton button, .stDownloadButton button { padding:.4rem .55rem; font-size:.88rem; }
         .stTextInput input, .stNumberInput input { height: 34px; font-size:.9rem; }
