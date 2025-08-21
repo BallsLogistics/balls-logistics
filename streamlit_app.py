@@ -361,6 +361,14 @@ if _qp_page in [k for k, _ in NAV]:
 
 _active = st.session_state.page
 
+# Build HTML button grid (3×2) instead of anchors to prevent iOS opening new tabs
+_nav_items_html = []
+for k, label in NAV:
+    if _active == k:
+        _nav_items_html.append(f'<button class="nav-btn active" type="button" disabled>{label}</button>')
+    else:
+        _nav_items_html.append(f'<button class="nav-btn" type="button" data-page="{k}">{label}</button>')
+
 # Build HTML anchor grid (3 columns × 2 rows)
 _nav_items = []
 for k, label in NAV:
@@ -403,9 +411,25 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="nav-table nav-sticky">' + "".join(_nav_items) + '</div>', unsafe_allow_html=True)
+st.markdown('<div class="nav-table nav-sticky">' + "".join(_nav_items_html) + '</div>', unsafe_allow_html=True)
 
-# Force same-tab navigation on iOS Safari (prevent new-tab + logout)
+# Hidden Streamlit buttons for in-place rerun (no full page reload)
+with st.container():
+    st.markdown('<div class="hidden-nav-controls">', unsafe_allow_html=True)
+    for __k, __label in NAV:
+        st.button(f"__go__{__k}", key=f"__go__{__k}", on_click=lambda k=__k: st.session_state.update(page=k))
+    st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown(
+    """
+    <style>
+      .hidden-nav-controls [data-testid="stButton"] { position:absolute; left:-20000px; top:-20000px; opacity:0; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# JS: wire visible nav buttons -> update URL param + click hidden Streamlit button
 st.markdown(
     """
     <script>
@@ -413,22 +437,21 @@ st.markdown(
         function wireNav(){
           const nav = document.querySelector('.nav-table');
           if(!nav) return;
-          nav.querySelectorAll('a.nav-btn, .nav-btn[href]')?.forEach?.(a => {
-            try { a.setAttribute('target','_self'); } catch(e){}
-            a.addEventListener('click', function(ev){
+          nav.querySelectorAll('button.nav-btn[data-page]')?.forEach?.(btn => {
+            btn.addEventListener('click', function(ev){
               ev.preventDefault(); ev.stopPropagation();
-              const href = this.getAttribute('href');
-              if(!href) return;
-              const url = new URL(href, window.location.href);
-              const current = new URL(window.location.href);
-              current.searchParams.set('page', url.searchParams.get('page'));
-              window.history.replaceState({}, '', current);
-              window.location.assign(current);
+              const page = this.getAttribute('data-page');
+              const url = new URL(window.location.href);
+              url.searchParams.set('page', page);
+              window.history.replaceState({}, '', url);
+              const hidden = Array.from(document.querySelectorAll('.hidden-nav-controls button'))
+                .find(b => (b.innerText||'').trim() === `__go__${page}`);
+              if(hidden){ hidden.click(); }
             }, {passive:false});
           });
         }
         document.addEventListener('DOMContentLoaded', wireNav);
-        setTimeout(wireNav, 250);
+        setTimeout(wireNav, 350);
       })();
     </script>
     """,
