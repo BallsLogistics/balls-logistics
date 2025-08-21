@@ -314,33 +314,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-with st.expander("📁 Backup & Restore", expanded=False):
-    def export_data():
-        data = {k: st.session_state[k] for k in [
-            "baseline","last_mileage","total_miles","total_cost","total_gallons",
-            "last_trip_summary","log","expenses","earnings"
-        ]}
-        return json.dumps(data, indent=2).encode("utf-8")
-
-    st.download_button(
-        label="📥 Download JSON",
-        data=export_data(),
-        file_name="balls_logistics_backup.json",
-        mime="application/json",
-        use_container_width=True,
-    )
-    up = st.file_uploader("Upload backup JSON", type="json")
-    if up:
-        try:
-            content = up.read()
-            data = json.loads(content)
-            for k, v in data.items():
-                st.session_state[k] = v
-            save_data()
-            st.success("Imported & saved.")
-        except Exception as e:
-            st.error(f"Import failed: {e}")
-
 # ------------------------- Navigation (compact) -------------------------
 NAV = [
     ("mileage", "⛽ Fuel"),
@@ -713,6 +686,71 @@ elif page == "settings":
             _forget_persisted_user_in_browser()
             st.markdown("<script>window.location.reload();</script>", unsafe_allow_html=True)
 
+    # --------------------- Backup & Restore (Settings only) ---------------------
+    st.divider()
+    st.markdown("### 📁 Backup & Restore")
+
+    def _export_data_bytes():
+        data = {k: st.session_state[k] for k in [
+            "baseline","last_mileage","total_miles","total_cost","total_gallons",
+            "last_trip_summary","log","expenses","earnings"
+        ]}
+        return json.dumps(data, indent=2).encode("utf-8")
+
+    st.download_button(
+        label="📥 Download JSON",
+        data=_export_data_bytes(),
+        file_name="balls_logistics_backup.json",
+        mime="application/json",
+        use_container_width=True,
+    )
+
+    up = st.file_uploader("Upload backup JSON", type="json")
+    if up:
+        try:
+            content = up.read()
+            data = json.loads(content)
+            for k, v in data.items():
+                st.session_state[k] = v
+            save_data()
+            st.success("Imported & saved.")
+        except Exception as e:
+            st.error(f"Import failed: {e}")
+
+    # --------------------- Quick Report (Settings only) ---------------------
+    st.divider()
+    st.markdown("### 📄 Quick Report")
+    if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
+        report = StringIO()
+        report.write("Balls Logistics Report
+=====================
+")
+        report.write(f"Baseline: {st.session_state.baseline}
+")
+        report.write(f"Current: {st.session_state.last_mileage}
+")
+        report.write(f"Miles: {st.session_state.total_miles:.2f}
+")
+        report.write(f"Gallons: {st.session_state.total_gallons:.2f}
+")
+        report.write(f"Fuel $: ${st.session_state.total_cost:.2f}
+")
+        if st.session_state.total_gallons > 0:
+            report.write(f"Avg MPG: {st.session_state.total_miles / st.session_state.total_gallons:.2f}
+")
+        if st.session_state.total_miles > 0:
+            report.write(f"Avg $/mi: {st.session_state.total_cost / st.session_state.total_miles:.2f}
+")
+        report.write("
+Earnings:
+")
+        for e in st.session_state.earnings:
+            report.write(f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}
+")
+        text = report.getvalue()
+        st.text_area("Report", text, height=260, key="report_txt_settings")
+        st.download_button("💾 Download .txt", text, file_name="balls_logistics_report.txt", use_container_width=True, key="dl_report_settings")
+
 # ------------------------- Statistics (bottom compact block) -------------------------
 st.markdown("---")
 st.markdown("### 📊 Statistics")
@@ -744,24 +782,4 @@ if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
 else:
     st.caption("Add trips to see stats.")
 
-# ------------------------- Report (compact) -------------------------
-st.markdown("---")
-st.markdown("### 📄 Quick Report")
-if st.button("🖨️ Generate Text", use_container_width=True):
-    report = StringIO()
-    report.write("Balls Logistics Report\n=====================\n")
-    report.write(f"Baseline: {st.session_state.baseline}\n")
-    report.write(f"Current: {st.session_state.last_mileage}\n")
-    report.write(f"Miles: {st.session_state.total_miles:.2f}\n")
-    report.write(f"Gallons: {st.session_state.total_gallons:.2f}\n")
-    report.write(f"Fuel $: ${st.session_state.total_cost:.2f}\n")
-    if st.session_state.total_gallons > 0:
-        report.write(f"Avg MPG: {st.session_state.total_miles / st.session_state.total_gallons:.2f}\n")
-    if st.session_state.total_miles > 0:
-        report.write(f"Avg $/mi: {st.session_state.total_cost / st.session_state.total_miles:.2f}\n")
-    report.write("\nEarnings:\n")
-    for e in st.session_state.earnings:
-        report.write(f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}\n")
-    text = report.getvalue()
-    st.text_area("Report", text, height=260)
-    st.download_button("💾 Download .txt", text, file_name="balls_logistics_report.txt", use_container_width=True)
+
