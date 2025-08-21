@@ -351,60 +351,55 @@ NAV = [
     ("settings", "⚙️ Settings"),
 ]
 
-def go(p: str):
-    st.session_state.page = p
-    rerun()
+# Radio-based nav (robust on iPhone). Renders as a 3×2 grid via CSS.
+NAV_KEYS = [k for k, _ in NAV]
+NAV_LABELS = {k: v for k, v in NAV}
 
-# Force 3 columns on iPhone using CSS grid override for Streamlit columns
+# Style the radio as a 3×2 button grid and highlight the active choice
 st.markdown(
     '''
     <style>
-      .nav-3x2 [data-testid="stHorizontalBlock"]{
+      [data-testid="stRadio"] [role="radiogroup"]{
         display:grid !important;
         grid-template-columns: repeat(3, 1fr) !important;
-        gap:.35rem !important;
+        gap:.4rem !important;
       }
-      .nav-3x2 [data-testid="stHorizontalBlock"] > div{
-        width:auto !important; flex:none !important;
+      [data-testid="stRadio"] label{
+        border:1px solid #e5e7eb; border-radius:.8rem; padding:.6rem .7rem; min-height:44px;
+        display:flex; align-items:center; justify-content:center; text-align:center; margin:0 !important;
+        background:#fff; color:inherit;
       }
-      .nav-3x2 [data-testid="stButton"] button:disabled {
-        background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; opacity:1 !important;
+      [data-testid="stRadio"] input{ position:absolute; opacity:0; width:0; height:0; }
+      [data-testid="stRadio"] label:has(input:checked){
+        background:#2563eb; color:#fff; border-color:#2563eb;
       }
-      .nav-3x2 [data-testid="stButton"] button:not(:disabled){ background:#fff; border:1px solid #e5e7eb; }
       @media (prefers-color-scheme: dark){
-        .nav-3x2 [data-testid="stButton"] button:not(:disabled){ background:#111827; border-color:#374151; color:#e5e7eb; }
-        .nav-3x2 [data-testid="stButton"] button:disabled{ background:#3b82f6 !important; border-color:#3b82f6 !important; color:#fff !important; }
+        [data-testid="stRadio"] label{ background:#111827; border-color:#374151; color:#e5e7eb; }
+        [data-testid="stRadio"] label:has(input:checked){ background:#3b82f6; border-color:#3b82f6; color:#fff; }
       }
     </style>
     ''',
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="nav-3x2">', unsafe_allow_html=True)
-# Row 1
-c1, c2, c3 = st.columns(3, gap="small")
-with c1:
-    st.button("⛽ Fuel", key="nav_mileage", use_container_width=True,
-              disabled=(st.session_state.page=="mileage"), on_click=lambda: go("mileage"))
-with c2:
-    st.button("💸 Expenses", key="nav_expenses", use_container_width=True,
-              disabled=(st.session_state.page=="expenses"), on_click=lambda: go("expenses"))
-with c3:
-    st.button("💰 Income", key="nav_earnings", use_container_width=True,
-              disabled=(st.session_state.page=="earnings"), on_click=lambda: go("earnings"))
-# Row 2
-c4, c5, c6 = st.columns(3, gap="small")
-with c4:
-    st.button("📜 Log", key="nav_log", use_container_width=True,
-              disabled=(st.session_state.page=="log"), on_click=lambda: go("log"))
-with c5:
-    st.button("📁 Files", key="nav_upload", use_container_width=True,
-              disabled=(st.session_state.page=="upload"), on_click=lambda: go("upload"))
-with c6:
-    st.button("⚙️ Settings", key="nav_settings", use_container_width=True,
-              disabled=(st.session_state.page=="settings"), on_click=lambda: go("settings"))
+# Keep the radio in sync with session_state.page
+if "nav_page_sel" not in st.session_state:
+    st.session_state.nav_page_sel = st.session_state.page if st.session_state.page in NAV_KEYS else NAV_KEYS[0]
 
-st.markdown('</div>', unsafe_allow_html=True)
+def _on_nav_change():
+    st.session_state.page = st.session_state.nav_page_sel
+    rerun()
+
+st.radio(
+    label="",
+    options=NAV_KEYS,
+    format_func=lambda k: NAV_LABELS[k],
+    index=NAV_KEYS.index(st.session_state.nav_page_sel) if st.session_state.nav_page_sel in NAV_KEYS else 0,
+    horizontal=False,
+    label_visibility="collapsed",
+    key="nav_page_sel",
+    on_change=_on_nav_change,
+)
 
 page = st.session_state.page
 st.title("🚛 Balls Logistics")
