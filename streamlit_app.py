@@ -395,7 +395,7 @@ st.markdown(
 st.markdown(
     """
     <style>
-      .nav-sticky { position:fixed; left:0; right:0; bottom:0; padding:.5rem .6rem calc(env(safe-area-inset-bottom) + .6rem) .6rem; background:rgba(255,255,255,.96); border-top:1px solid #e5e7eb; backdrop-filter:saturate(180%) blur(6px); z-index:9999; }
+      .nav-sticky { position:fixed; left:0; right:0; bottom:0; padding:.5rem .6rem calc(env(safe-area-inset-bottom) + .6rem) .6rem; background:rgba(255,255,255,.96); border-top:1px solid #e5e7eb; backdrop-filter:saturate(180%) blur(6px); -webkit-backdrop-filter:saturate(180%) blur(6px); z-index:2147483647; pointer-events:auto; }
       .nav-table { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
       .nav-btn { display:inline-flex; align-items:center; justify-content:center; text-align:center; padding:.65rem .7rem; min-height:44px; border-radius:.8rem; text-decoration:none; border:1px solid #e5e7eb; background:#ffffff; color:inherit; }
       .nav-btn.active { background:#2563eb; color:#ffffff; border-color:#2563eb; pointer-events:none; }
@@ -415,15 +415,15 @@ st.markdown('<div class="nav-table nav-sticky">' + "".join(_nav_items_html) + '<
 
 # Hidden Streamlit buttons for in-place rerun (no full page reload)
 with st.container():
-    st.markdown('<div class="hidden-nav-controls">', unsafe_allow_html=True)
-    for __k, __label in NAV:
-        st.button(f"__go__{__k}", key=f"__go__{__k}", on_click=lambda k=__k: st.session_state.update(page=k))
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div id="hidden-nav">', unsafe_allow_html=True)
+for __k, __label in NAV:
+    st.button(f"__go__{__k}", key=f"__go__{__k}", on_click=lambda k=__k: st.session_state.update(page=k))
+st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown(
     """
     <style>
-      .hidden-nav-controls [data-testid="stButton"] { position:absolute; left:-20000px; top:-20000px; opacity:0; }
+      #hidden-nav { position:absolute; left:-99999px; top:-99999px; width:1px; height:1px; overflow:hidden; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -444,7 +444,7 @@ st.markdown(
               const url = new URL(window.location.href);
               url.searchParams.set('page', page);
               window.history.replaceState({}, '', url);
-              const hidden = Array.from(document.querySelectorAll('.hidden-nav-controls button'))
+              const hidden = Array.from(document.querySelectorAll('#hidden-nav button'))
                 .find(b => (b.innerText||'').trim() === `__go__${page}`);
               if(hidden){ hidden.click(); }
             }, {passive:false});
