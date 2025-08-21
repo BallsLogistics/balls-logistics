@@ -361,97 +361,50 @@ if _qp_page in [k for k, _ in NAV]:
 
 _active = st.session_state.page
 
-# Build HTML button grid (3×2) instead of anchors to prevent iOS opening new tabs
-_nav_items_html = []
-for k, label in NAV:
-    if _active == k:
-        _nav_items_html.append(f'<button class="nav-btn active" type="button" disabled>{label}</button>')
-    else:
-        _nav_items_html.append(f'<button class="nav-btn" type="button" data-page="{k}">{label}</button>')
-
-# Build HTML anchor grid (3 columns × 2 rows)
+# === SIMPLE, RELIABLE NAV (no sticky, no hidden controls) ===
+# Build an anchor grid that navigates in the SAME TAB
 _nav_items = []
 for k, label in NAV:
     cls = "nav-btn active" if _active == k else "nav-btn"
-    # Use relative link with page param; keeps reload simple
-    _nav_items.append(f'<a class="{cls}" href="?page={k}">{label}</a>' if _active != k else f'<span class="{cls}">{label}</span>')
+    if _active == k:
+        _nav_items.append(f'<span class="{cls}">{label}</span>')
+    else:
+        _nav_items.append(f'<a class="{cls}" href="?page={k}" target="_self" rel="noopener">{label}</a>')
 
+# Render grid at the top area (non-sticky for iOS reliability)
 st.markdown(
     """
     <style>
-      .nav-table { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
-      .nav-btn { display: inline-block; text-align: center; padding: .55rem .6rem; border-radius: .6rem; text-decoration: none; border: 1px solid #e5e7eb; background: #ffffff; color: inherit; }
-      .nav-btn.active { background: #2563eb; color: #ffffff; border-color: #2563eb; pointer-events: none; }
-      @media (prefers-color-scheme: dark) {
-        .nav-btn { background: #111827; border-color: #374151; color: #e5e7eb; }
-        .nav-btn.active { background: #3b82f6; border-color: #3b82f6; color: #ffffff; }
-      }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Sticky bottom nav + larger tap targets + hide chrome
-st.markdown(
-    """
-    <style>
-      .nav-sticky { position:fixed; left:0; right:0; bottom:0; padding:.5rem .6rem calc(env(safe-area-inset-bottom) + .6rem) .6rem; background:rgba(255,255,255,.96); border-top:1px solid #e5e7eb; backdrop-filter:saturate(180%) blur(6px); -webkit-backdrop-filter:saturate(180%) blur(6px); z-index:2147483647; pointer-events:auto; }
-      .nav-table { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
-      .nav-btn { display:inline-flex; align-items:center; justify-content:center; text-align:center; padding:.65rem .7rem; min-height:44px; border-radius:.8rem; text-decoration:none; border:1px solid #e5e7eb; background:#ffffff; color:inherit; }
+      .nav-table { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; margin:.25rem 0 .5rem; }
+      .nav-btn { display:inline-flex; align-items:center; justify-content:center; text-align:center; padding:.6rem .7rem; min-height:44px; border-radius:.8rem; text-decoration:none; border:1px solid #e5e7eb; background:#ffffff; color:inherit; }
       .nav-btn.active { background:#2563eb; color:#ffffff; border-color:#2563eb; pointer-events:none; }
-      .block-container { padding-bottom: 6.5rem !important; }
-      #MainMenu, header, footer { visibility: hidden; }
       @media (prefers-color-scheme: dark) {
         .nav-btn { background:#111827; border-color:#374151; color:#e5e7eb; }
         .nav-btn.active { background:#3b82f6; border-color:#3b82f6; color:#ffffff; }
-        .nav-sticky { background:rgba(17,24,39,.9); border-top-color:#374151; }
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="nav-table nav-sticky">' + "".join(_nav_items_html) + '</div>', unsafe_allow_html=True)
+st.markdown('<div class="nav-table">' + "".join(_nav_items) + '</div>', unsafe_allow_html=True)
 
-# Hidden Streamlit buttons for in-place rerun (no full page reload)
-with st.container():
-    st.markdown('<div id="hidden-nav">', unsafe_allow_html=True)
-for __k, __label in NAV:
-    st.button(f"__go__{__k}", key=f"__go__{__k}", on_click=lambda k=__k: st.session_state.update(page=k))
-st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown(
-    """
-    <style>
-      #hidden-nav { position:absolute; left:-99999px; top:-99999px; width:1px; height:1px; overflow:hidden; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# JS: wire visible nav buttons -> update URL param + click hidden Streamlit button
+# Ensure same-tab navigation on iOS — override any sanitizer adding _blank
 st.markdown(
     """
     <script>
       (function(){
-        function wireNav(){
-          const nav = document.querySelector('.nav-table');
-          if(!nav) return;
-          nav.querySelectorAll('button.nav-btn[data-page]')?.forEach?.(btn => {
-            btn.addEventListener('click', function(ev){
-              ev.preventDefault(); ev.stopPropagation();
-              const page = this.getAttribute('data-page');
-              const url = new URL(window.location.href);
-              url.searchParams.set('page', page);
-              window.history.replaceState({}, '', url);
-              const hidden = Array.from(document.querySelectorAll('#hidden-nav button'))
-                .find(b => (b.innerText||'').trim() === `__go__${page}`);
-              if(hidden){ hidden.click(); }
-            }, {passive:false});
+        function wireSameTab(){
+          document.querySelectorAll('.nav-table a.nav-btn').forEach(a => {
+            a.setAttribute('target','_self');
+            a.addEventListener('click', function(e){
+              // Force same-tab navigation
+              this.target = '_self';
+            });
           });
         }
-        document.addEventListener('DOMContentLoaded', wireNav);
-        setTimeout(wireNav, 350);
+        document.addEventListener('DOMContentLoaded', wireSameTab);
+        setTimeout(wireSameTab, 250);
       })();
     </script>
     """,
