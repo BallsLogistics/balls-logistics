@@ -60,21 +60,15 @@ def mobile_bottom_nav(current: str):
                     on_click=lambda p=pid: switch_page(p, write_qp=False),
                 )
 
-# ----------------------- Layout & sticky-nav CSS -----------------------
-st.markdown(
-    """
+# --- Layout & sticky-nav CSS ---
+st.markdown("""
 <style>
-/* Hide the big main-area Logout on phones (sticky bar can host one if needed) */
+/* Hide the big main-area Logout on phones (sticky bar handles it if you want) */
 @media (max-width:768px){ .bl-main-logout{ display:none !important; } }
 
 /* Desktop top nav visible, hidden on phones */
 .bl-desktop-nav{ display:block; }
 @media (max-width:768px){ .bl-desktop-nav{ display:none !important; } }
-
-/* Leave space for the sticky bar */
-@media (max-width:768px){
-  .block-container{ padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
-}
 
 /* Active-state styling for the desktop top nav (we render the active one as disabled) */
 .bl-topnav .stButton > button[disabled]{
@@ -84,26 +78,44 @@ st.markdown(
   .bl-topnav .stButton > button[disabled]{ border-color:rgba(255,255,255,.25); }
 }
 
-/* Make the first container after #bl-nav-anchor sticky on phones */
+/* Leave room for the sticky bar */
+@media (max-width:768px){
+  .block-container{ padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
+}
+
+/* Make the first container after #bl-nav-anchor a fixed bottom bar */
 @media (max-width:768px){
   #bl-nav-anchor + div{
     position:fixed; left:0; right:0; bottom:0; z-index:1000;
-    padding:8px calc(10px + env(safe-area-inset-right))
-            calc(10px + env(safe-area-inset-bottom))
-            calc(10px + env(safe-area-inset-left));
     background:rgba(255,255,255,.92);
     backdrop-filter:blur(6px);
     border-top:1px solid rgba(0,0,0,.08);
+    padding:8px calc(10px + env(safe-area-inset-right))
+            calc(10px + env(safe-area-inset-bottom))
+            calc(10px + env(safe-area-inset-left));
   }
-  #bl-nav-anchor + div [data-testid="column"] > div{ padding:0 .25rem; }
+  /* Force the columns row into a 6-col grid on phones (no stacking) */
+  #bl-nav-anchor + div [data-testid="stHorizontalBlock"]{
+    display:grid !important;
+    grid-template-columns: repeat(6, 1fr) !important;
+    gap:8px !important;
+  }
+  /* Remove default column padding/margins so buttons sit snugly */
+  #bl-nav-anchor + div [data-testid="column"]{ width:auto !important; padding:0 !important; }
+  #bl-nav-anchor + div [data-testid="column"] > div{ padding:0 !important; }
+  /* Button look in the sticky bar */
+  #bl-nav-anchor + div .stButton>button{
+    width:100%; padding:10px 4px; border-radius:12px; font-size:.9rem; line-height:1.1;
+    border:1px solid rgba(0,0,0,.10);
+  }
 }
+
+/* Dark mode tweak for the bar */
 @media (max-width:768px) and (prefers-color-scheme:dark){
   #bl-nav-anchor + div{ background:rgba(30,30,30,.88); border-top-color:rgba(255,255,255,.12); }
 }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 # ----------------------- Auth debug + hard logout helpers -----------------------
 def _force_logout():
