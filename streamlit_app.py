@@ -16,8 +16,7 @@ st.set_page_config(
     layout="wide",  # use full width; we'll constrain with CSS
     initial_sidebar_state="collapsed",
 )
-# Debug marker to confirm new build loaded
-st.caption("Nav grid R4")
+
 st.markdown(
     """
     <style>
