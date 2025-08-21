@@ -1,4 +1,4 @@
-# streamlit_app.py (top)
+# streamlit_app.py
 import streamlit as st, json
 from datetime import datetime
 import pandas as pd, altair as alt
@@ -7,14 +7,14 @@ from streamlit_cookies_manager import EncryptedCookieManager
 from firebase_config import auth, db, firebase_app  # uses @st.cache_resource inside
 
 
-# --- Basic guard ---
+# --- guard: require secrets so the app doesn't half-load ---
 if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID"]):
-    st.stop()  # prevents half-initialized app from running
+    st.stop()
 
 # MUST be the first Streamlit call
 st.set_page_config(page_title="🚛 Balls Logistics", layout="centered", initial_sidebar_state="collapsed")
 
-# ----------------------- URL routing helpers -----------------------
+# --- URL routing helpers ---
 def _set_qp(**kwargs):
     try:
         st.query_params.update(kwargs)
@@ -34,9 +34,13 @@ except Exception:
 if "page" in _qp:
     st.session_state.page = _qp["page"][0] if isinstance(_qp["page"], list) else _qp["page"]
 
-# ----------------------- Mobile sticky bottom nav -----------------------
+
 def mobile_bottom_nav(current: str):
-    # Anchor so the next container becomes sticky via CSS
+    """A 6-button mobile bar. We *don't* write query params here to avoid logouts
+    on strict-cookie Safari. Buttons only update session_state.page.
+    CSS (below) turns this container into a sticky row on small screens.
+    """
+    # Anchor used by CSS to target the *next* element-container reliably
     st.markdown('<span id="bl-nav-anchor"></span>', unsafe_allow_html=True)
     with st.container():
         cols = st.columns(6)
@@ -48,11 +52,10 @@ def mobile_bottom_nav(current: str):
             ("upload",   "📁 Upload"),
             ("settings", "⚙️ Settings"),
         ]
-        for (pid, label), col in zip(items, cols):
-            with col:
+        for i, (pid, label) in enumerate(items):
+            with cols[i]:
                 is_active = (current == pid)
                 label_to_show = f"**{label}**" if is_active else label
-                # IMPORTANT: do NOT update query params from mobile to avoid reloads
                 st.button(
                     label_to_show,
                     key=f"mnav_{pid}",
@@ -60,17 +63,26 @@ def mobile_bottom_nav(current: str):
                     on_click=lambda p=pid: switch_page(p, write_qp=False),
                 )
 
+
 # --- Layout & sticky-nav CSS ---
-st.markdown("""
+st.markdown(
+    """
 <style>
-/* Hide the big main-area Logout on phones (sticky bar handles it if you want) */
+/* Hide the big main-area Logout on phones (sticky bar can host a compact one if desired) */
 @media (max-width:768px){ .bl-main-logout{ display:none !important; } }
 
 /* Desktop top nav visible, hidden on phones */
 .bl-desktop-nav{ display:block; }
 @media (max-width:768px){ .bl-desktop-nav{ display:none !important; } }
 
-/* Active-state styling for the desktop top nav (we render the active one as disabled) */
+/* Leave space for the sticky bar */
+@media (max-width:768px){
+  .block-container{
+    padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* Active-state styling for the desktop top nav (we render the active as disabled) */
 .bl-topnav .stButton > button[disabled]{
   opacity:1; font-weight:700; border:1px solid rgba(0,0,0,.25);
 }
@@ -78,46 +90,52 @@ st.markdown("""
   .bl-topnav .stButton > button[disabled]{ border-color:rgba(255,255,255,.25); }
 }
 
-/* Leave room for the sticky bar */
+/* ========================= Sticky mobile bar rules ========================= */
+/* Robust targeting: select the element-container that immediately follows the
+   element-container which *contains* our #bl-nav-anchor. This works across
+   Streamlit versions because we don't rely on specific inner wrappers. */
 @media (max-width:768px){
-  .block-container{ padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
-}
-
-/* Make the first container after #bl-nav-anchor a fixed bottom bar */
-@media (max-width:768px){
-  #bl-nav-anchor + div{
-    position:fixed; left:0; right:0; bottom:0; z-index:1000;
-    background:rgba(255,255,255,.92);
-    backdrop-filter:blur(6px);
-    border-top:1px solid rgba(0,0,0,.08);
-    padding:8px calc(10px + env(safe-area-inset-right))
+  .block-container .element-container:has(#bl-nav-anchor) + .element-container{
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+    padding: 8px calc(10px + env(safe-area-inset-right))
             calc(10px + env(safe-area-inset-bottom))
             calc(10px + env(safe-area-inset-left));
+    background: rgba(255,255,255,.92);
+    backdrop-filter: blur(6px);
+    border-top: 1px solid rgba(0,0,0,.08);
   }
-  /* Force the columns row into a 6-col grid on phones (no stacking) */
-  #bl-nav-anchor + div [data-testid="stHorizontalBlock"]{
-    display:grid !important;
+  /* Force the columns into a 6-col grid (no auto stacking) */
+  .block-container .element-container:has(#bl-nav-anchor) + .element-container [data-testid="stHorizontalBlock"]{
+    display: grid !important;
     grid-template-columns: repeat(6, 1fr) !important;
-    gap:8px !important;
+    gap: 8px !important;
   }
-  /* Remove default column padding/margins so buttons sit snugly */
-  #bl-nav-anchor + div [data-testid="column"]{ width:auto !important; padding:0 !important; }
-  #bl-nav-anchor + div [data-testid="column"] > div{ padding:0 !important; }
+  /* Remove default column padding so buttons sit snug */
+  .block-container .element-container:has(#bl-nav-anchor) + .element-container [data-testid="column"]{
+    width:auto !important; padding:0 !important; margin:0 !important;
+  }
+  .block-container .element-container:has(#bl-nav-anchor) + .element-container [data-testid="column"] > div{
+    padding:0 !important; margin:0 !important;
+  }
   /* Button look in the sticky bar */
-  #bl-nav-anchor + div .stButton>button{
+  .block-container .element-container:has(#bl-nav-anchor) + .element-container .stButton>button{
     width:100%; padding:10px 4px; border-radius:12px; font-size:.9rem; line-height:1.1;
     border:1px solid rgba(0,0,0,.10);
   }
 }
 
-/* Dark mode tweak for the bar */
+/* Dark mode for the bar */
 @media (max-width:768px) and (prefers-color-scheme:dark){
-  #bl-nav-anchor + div{ background:rgba(30,30,30,.88); border-top-color:rgba(255,255,255,.12); }
+  .block-container .element-container:has(#bl-nav-anchor) + .element-container{
+    background: rgba(30,30,30,.88); border-top-color: rgba(255,255,255,.12);
+  }
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-# ----------------------- Auth debug + hard logout helpers -----------------------
+# --- Auth debug + hard logout helpers ---
 def _force_logout():
     st.session_state.user = None
     try:
@@ -127,7 +145,7 @@ def _force_logout():
     st.success("Forced logout. Reloading…")
     rerun()
 
-# Allow URL-based logout: add ?logout=1 to the URL
+# URL-based logout: add ?logout=1 to the URL
 qs = st.query_params
 if "logout" in qs:
     _force_logout()
@@ -138,18 +156,15 @@ def rerun():
     if callable(fn):
         fn()
 
-# ----------------------- Cookie Manager -----------------------
-cookies = EncryptedCookieManager(
-    prefix="bl_",
-    password=st.secrets["cookie_password"],
-)
+# --- Cookie Manager ---
+cookies = EncryptedCookieManager(prefix="bl_", password=st.secrets["cookie_password"])
 
 # Graceful fallback if cookies are blocked (iOS Safari / private mode / embedded)
 if "allow_cookie_fallback" not in st.session_state:
     st.session_state.allow_cookie_fallback = False
 
 if not cookies.ready() and not st.session_state.allow_cookie_fallback:
-    # If the user is already logged in for this session, allow fallback automatically
+    # If the user is already logged in for this session, just allow fallback automatically
     if st.session_state.get("user"):
         st.session_state.allow_cookie_fallback = True
     else:
@@ -168,7 +183,6 @@ COOKIE_KEY = "auth"
 
 def _persist_user_to_browser(user_dict: dict):
     if st.session_state.get("allow_cookie_fallback"):
-        # No cookies in fallback; we rely on session_state only
         return
     payload = {
         "refreshToken": user_dict.get("refreshToken"),
@@ -308,6 +322,7 @@ if st.session_state.user is None:
 # ✅ If we reached here, user is authenticated
 st.success(f"✅ Logged in as {st.session_state.user.get('email')}")
 
+
 def logout():
     st.session_state.user = None
     _forget_persisted_user_in_browser()
@@ -327,7 +342,7 @@ st.caption("Session active")
 
 # ----------------------- Device Profile Detection -----------------------
 if "device_profile" not in st.session_state:
-    st.session_state.device_profile = "desktop"  # simple default
+    st.session_state.device_profile = "desktop"
 
 # ----------------------- Firebase Persistence Functions -----------------------
 def save_data():
@@ -398,6 +413,7 @@ def export_data():
     }
     return json.dumps(data, indent=4).encode("utf-8")
 
+
 def import_data(uploaded_file):
     content = uploaded_file.read()
     data = json.loads(content)
@@ -414,6 +430,7 @@ def import_data(uploaded_file):
     st.success("Data imported and saved successfully!")
 
 # ----------------------- Session State Initialization -----------------------
+
 def init_session():
     defaults = {
         "edit_expense_index": None,
@@ -452,14 +469,6 @@ with col2:
     st.metric("Total Expenses", f"${total_exp:.2f}")
     st.metric("Total Owner Earnings", f"${total_earn:.2f}")
     st.metric("Net Income", f"${net_income:.2f}")
-
-# ----------------------- Ensure Save After Edits -----------------------
-if st.session_state.get("new_expense_added"):
-    save_data(); st.session_state.new_expense_added = False
-if st.session_state.get("new_trip_added"):
-    save_data(); st.session_state.new_trip_added = False
-if st.session_state.get("new_earning_added"):
-    save_data(); st.session_state.new_earning_added = False
 
 # ----------------------- Backup & Restore UI -----------------------
 st.markdown("### 📁 Backup & Restore")
@@ -518,7 +527,8 @@ if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
 else:
     st.info("Add trip and fuel data to see statistics.")
 
-# ----------------------- Report Generator -----------------------
+# ----------------------- PDF Report Generator -----------------------
+
 st.markdown("---")
 st.markdown("### 📄 Generate Printable Report")
 
@@ -549,23 +559,19 @@ if st.button("🖨️ Generate Report Text"):
 # ----------------------- UI Enhancements -----------------------
 st.markdown(
     """
-    <style>
-    .block-container { padding-top: 1rem; padding-bottom: 3rem; padding-left: 1rem; padding-right: 1rem; max-width: 800px; }
-    @media screen and (max-width: 600px) {
-        .block-container { padding-left: 0.5rem; padding-right: 0.5rem; }
-        .stButton button { font-size: 1rem; padding: 0.4rem 0.8rem; }
-    }
-    input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    input[type=number] { appearance: textfield; }
-    .stButton button { border-radius: 0.5rem; padding: 0.6rem 1.2rem; }
-    </style>
-    """,
+<style>
+.block-container{ padding-top:1rem; padding-bottom:3rem; padding-left:1rem; padding-right:1rem; max-width:800px; }
+@media screen and (max-width:600px){ .block-container{ padding-left:.5rem; padding-right:.5rem; } .stButton button{ font-size:1rem; padding:.4rem .8rem; } }
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+input[type=number]{ appearance:textfield; }
+.stButton button{ border-radius:.5rem; padding:.6rem 1.2rem; }
+</style>
+""",
     unsafe_allow_html=True,
 )
 
-# ----------------------- Session State Initialization (keys) -----------------------
-# (init_session already sets these; this is just defensive if something cleared state)
-for _k, _v in {
+# ----------------------- Session State Initialization (safety net) -----------------------
+for k, v in {
     "edit_expense_index": None,
     "baseline": None,
     "log": [],
@@ -578,12 +584,11 @@ for _k, _v in {
     "expenses": [],
     "earnings": [],
 }.items():
-    if _k not in st.session_state:
-        st.session_state[_k] = _v
+    if k not in st.session_state:
+        st.session_state[k] = v
 
-# ---------------------------- Navigation Bar (top) ----------------------------
+# ---------------------------- Navigation Bar (top / desktop) ----------------------------
 st.markdown('<div class="bl-desktop-nav bl-topnav">', unsafe_allow_html=True)
-
 nav_cols = st.columns(6)
 nav_buttons = [
     ("⛽\nFuel", "mileage"),
@@ -605,15 +610,12 @@ for col, (label, pid) in zip(nav_cols, nav_buttons):
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------- Pages ----------------------------
-# Default page (MUST be set before the page sections)
 page_name = st.session_state.get("page", "mileage")
 st.title("🚛 Real Balls Logistics Management")
 
-# PAGE 1: Mileage + Fuel
 if page_name == "mileage":
     with st.container():
         st.subheader("📍 Baseline Mileage")
-
         if st.session_state.baseline is None:
             baseline_input = st.number_input("Enter starting mileage (baseline):", min_value=0.0, step=0.1, placeholder="e.g., 150000")
             if st.button("✅ Save Baseline", disabled=baseline_input <= 0):
@@ -640,9 +642,7 @@ if page_name == "mileage":
                 st.warning("New mileage must be greater than the previous recorded mileage.")
                 is_valid = False
 
-        confirm_disabled = not is_valid
-
-        if st.button("✅ Confirm Trip Entry", disabled=confirm_disabled):
+        if st.button("✅ Confirm Trip Entry", disabled=not is_valid):
             if st.session_state.last_mileage is not None:
                 try:
                     distance = new_mileage - st.session_state.last_mileage
@@ -657,11 +657,6 @@ if page_name == "mileage":
                         st.session_state.total_gallons += gallons
                         st.session_state.last_mileage = new_mileage
 
-                        overall_cost_per_mile = (
-                            st.session_state.total_cost / st.session_state.total_miles
-                            if st.session_state.total_miles > 0 else 0
-                        )
-
                         log_entry = {
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "type": "Trip",
@@ -672,12 +667,10 @@ if page_name == "mileage":
                             "cost_per_mile": cost_per_mile,
                             "note": "Mileage + Fuel",
                         }
-
                         st.session_state.log.append(log_entry)
                         st.session_state.last_trip_summary = log_entry
                         st.session_state.pending_changes = True
                         rerun()
-
                 except ZeroDivisionError:
                     st.error("Calculation error: Make sure gallons used is not zero.")
             else:
@@ -686,7 +679,6 @@ if page_name == "mileage":
         if st.session_state.last_trip_summary:
             entry = st.session_state.last_trip_summary
             st.subheader("🧶 Trip Summary")
-
             st.markdown("**📊 Last Trip:**")
             st.write(f"**Distance Driven:** {entry['distance']:.2f} miles")
             st.write(f"**Gallons Used:** {entry['gallons']:.2f} gal")
@@ -699,32 +691,22 @@ if page_name == "mileage":
             st.write(f"**Total Gallons Used:** {st.session_state.total_gallons:.2f} gal")
             st.write(f"**Total Fuel Cost:** ${st.session_state.total_cost:.2f}")
             overall_cost_per_mile = (
-                st.session_state.total_cost / st.session_state.total_miles
-                if st.session_state.total_miles > 0 else 0
+                st.session_state.total_cost / st.session_state.total_miles if st.session_state.total_miles > 0 else 0
             )
             st.write(f"**Cost per Mile (Overall):** ${overall_cost_per_mile:.2f}")
 
-# PAGE 2: Expenses
 elif page_name == "expenses":
     st.subheader("💸 Expense Logging")
-
-    expense_options = [
-        "Fuel", "Repair", "Certificates", "Insurance", "Trailer Rent", "IFTA", "Reefer Fuel", "Other"
-    ]
-
+    expense_options = ["Fuel", "Repair", "Certificates", "Insurance", "Trailer Rent", "IFTA", "Reefer Fuel", "Other"]
     today = datetime.now().strftime("%Y-%m-%d")
+
     if st.session_state.edit_expense_index is None:
         expense_type = st.selectbox("Expense Type", expense_options, key="new_expense_type")
         description = st.text_input("Description", key="new_expense_description")
         amount = st.number_input("Amount ($)", min_value=0.0, step=0.01, key="new_expense_amount")
 
         if st.button("➕ Add Expense"):
-            expense = {
-                "date": today,
-                "type": expense_type,
-                "description": description,
-                "amount": amount,
-            }
+            expense = {"date": today, "type": expense_type, "description": description, "amount": amount}
             st.session_state.expenses.append(expense)
             st.session_state.log.append({
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -739,12 +721,10 @@ elif page_name == "expenses":
     if "edit_expense_index" not in st.session_state:
         st.session_state.edit_expense_index = None
 
-    # Show edit form if index is set and still valid
     if st.session_state.edit_expense_index is not None:
         idx = st.session_state.edit_expense_index
         if 0 <= idx < len(st.session_state.expenses):
             expense = st.session_state.expenses[idx]
-
             st.info(f"Editing expense from {expense['date']}")
             new_type = st.selectbox(
                 "Expense Type",
@@ -752,7 +732,6 @@ elif page_name == "expenses":
                 index=expense_options.index(expense["type"]) if expense["type"] in expense_options else len(expense_options) - 1,
                 key=f"edit_type_{idx}",
             )
-
             new_description = st.text_input("Description", value=expense["description"], key=f"edit_description_{idx}")
             new_amount = st.number_input("Amount ($)", min_value=0.0, step=0.01, value=expense["amount"])
 
@@ -774,7 +753,6 @@ elif page_name == "expenses":
                     st.session_state.edit_expense_index = None
                     rerun()
         else:
-            # Reset if somehow invalid index remains
             st.session_state.edit_expense_index = None
 
     if st.session_state.expenses:
@@ -798,11 +776,9 @@ elif page_name == "expenses":
     else:
         st.info("No expenses recorded yet.")
 
-    # Show total expenses
     total_expense_amount = sum(entry["amount"] for entry in st.session_state.expenses)
     st.markdown(f"### 💵 Total Expenses: **${total_expense_amount:.2f}**")
 
-# PAGE 3: Income
 elif page_name == "earnings":
     st.subheader("💰 Income Tracking")
 
@@ -813,12 +789,7 @@ elif page_name == "earnings":
     owner_net = owner_earning - total_expenses
 
     if st.button("✅ Confirm Earning"):
-        earning = {
-            "date": today,
-            "worker": worker_earning,
-            "owner": owner_earning,
-            "net_owner": owner_net,
-        }
+        earning = {"date": today, "worker": worker_earning, "owner": owner_earning, "net_owner": owner_net}
         st.session_state.earnings.append(earning)
         st.session_state.log.append({
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -832,34 +803,22 @@ elif page_name == "earnings":
     if st.session_state.earnings:
         st.markdown("### 📒 Income History")
         df = pd.DataFrame(st.session_state.earnings)
-
         if "net_owner" not in df.columns:
             df["net_owner"] = df["owner"] - total_expenses
-
         st.dataframe(df, use_container_width=True)
-
-        # Income chart
         chart = alt.Chart(df).mark_line(point=True).encode(
-            x="date:T",
-            y=alt.Y("net_owner:Q", title="Net Owner Income"),
-            tooltip=["date", "net_owner"],
+            x="date:T", y=alt.Y("net_owner:Q", title="Net Owner Income"), tooltip=["date", "net_owner"]
         ).properties(title="Net Owner Income Over Time", width=600)
         st.altair_chart(chart, use_container_width=True)
-
-        # CSV Export
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download Income Data (CSV)", csv, "income_data.csv", "text/csv")
-
-        total_worker = df["worker"].sum()
-        total_owner = df["owner"].sum()
-        total_net = df["net_owner"].sum()
+        total_worker = df["worker"].sum(); total_owner = df["owner"].sum(); total_net = df["net_owner"].sum()
         st.markdown(f"**Total Worker Earnings:** ${total_worker:.2f}")
         st.markdown(f"**Total Owner Earnings:** ${total_owner:.2f}")
         st.markdown(f"**Owner Net After Expenses:** ${total_net:.2f}")
     else:
         st.info("No earnings recorded yet.")
 
-# PAGE 4: Data Log
 elif page_name == "log":
     st.subheader("📜 All Input Records")
     if st.session_state.log:
@@ -872,13 +831,10 @@ elif page_name == "log":
                     f"${entry['cost_per_mile']:.2f}/mi ({entry['note']})"
                 )
             else:
-                st.write(
-                    f"🕒 {entry['timestamp']} — **{entry_type}**: ${entry['amount']:.2f} ({entry['note']})"
-                )
+                st.write(f"🕒 {entry['timestamp']} — **{entry_type}**: ${entry['amount']:.2f} ({entry['note']})")
     else:
         st.info("No data recorded yet.")
 
-# PAGE 5: Upload
 elif page_name == "upload":
     st.subheader("📁 Upload Files")
     uploaded_files = st.file_uploader("Upload any file(s):", accept_multiple_files=True)
@@ -886,7 +842,6 @@ elif page_name == "upload":
         for f in uploaded_files:
             st.success(f"Uploaded: {f.name}")
 
-# PAGE 6: Settings
 elif page_name == "settings":
     st.subheader("⚙️ App Settings")
 
@@ -910,6 +865,5 @@ elif page_name == "settings":
             _forget_persisted_user_in_browser()
             st.markdown("<script>window.location.reload();</script>", unsafe_allow_html=True)
 
-# ---------------------------- Render mobile sticky bottom nav ----------------------------
-_current = st.session_state.get("page", "mileage")
-mobile_bottom_nav(_current)
+# ---------------------------- Mobile sticky bottom nav ----------------------------
+mobile_bottom_nav(st.session_state.get("page", "mileage"))
