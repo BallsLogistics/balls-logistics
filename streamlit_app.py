@@ -720,7 +720,8 @@ elif page == "settings":
     # --------------------- Quick Report (Settings only) ---------------------
     st.divider()
     st.markdown("### 📄 Quick Report")
-    if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
+
+    def _build_quick_report() -> str:
         lines = []
         lines.append("Balls Logistics Report")
         lines.append("=====================")
@@ -737,10 +738,13 @@ elif page == "settings":
         lines.append("Earnings:")
         for e in st.session_state.earnings:
             lines.append(f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}")
-        text = "
+        return "
 ".join(lines)
-        st.text_area("Report", text, height=260, key="report_txt_settings")
-        st.download_button("💾 Download .txt", text, file_name="balls_logistics_report.txt", use_container_width=True, key="dl_report_settings")
+
+    if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
+        txt = _build_quick_report()
+        st.text_area("Report", txt, height=260, key="report_txt_settings")
+        st.download_button("💾 Download .txt", txt, file_name="balls_logistics_report.txt", use_container_width=True, key="dl_report_settings")
 
 # ------------------------- Statistics (bottom compact block) -------------------------
 st.markdown("---")
