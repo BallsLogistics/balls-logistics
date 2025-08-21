@@ -721,33 +721,24 @@ elif page == "settings":
     st.divider()
     st.markdown("### 📄 Quick Report")
     if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
-        report = StringIO()
-        report.write("Balls Logistics Report
-=====================
-")
-        report.write(f"Baseline: {st.session_state.baseline}
-")
-        report.write(f"Current: {st.session_state.last_mileage}
-")
-        report.write(f"Miles: {st.session_state.total_miles:.2f}
-")
-        report.write(f"Gallons: {st.session_state.total_gallons:.2f}
-")
-        report.write(f"Fuel $: ${st.session_state.total_cost:.2f}
-")
+        lines = []
+        lines.append("Balls Logistics Report")
+        lines.append("=====================")
+        lines.append(f"Baseline: {st.session_state.baseline}")
+        lines.append(f"Current: {st.session_state.last_mileage}")
+        lines.append(f"Miles: {st.session_state.total_miles:.2f}")
+        lines.append(f"Gallons: {st.session_state.total_gallons:.2f}")
+        lines.append(f"Fuel $: ${st.session_state.total_cost:.2f}")
         if st.session_state.total_gallons > 0:
-            report.write(f"Avg MPG: {st.session_state.total_miles / st.session_state.total_gallons:.2f}
-")
+            lines.append(f"Avg MPG: {st.session_state.total_miles / st.session_state.total_gallons:.2f}")
         if st.session_state.total_miles > 0:
-            report.write(f"Avg $/mi: {st.session_state.total_cost / st.session_state.total_miles:.2f}
-")
-        report.write("
-Earnings:
-")
+            lines.append(f"Avg $/mi: {st.session_state.total_cost / st.session_state.total_miles:.2f}")
+        lines.append("")
+        lines.append("Earnings:")
         for e in st.session_state.earnings:
-            report.write(f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}
-")
-        text = report.getvalue()
+            lines.append(f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}")
+        text = "
+".join(lines)
         st.text_area("Report", text, height=260, key="report_txt_settings")
         st.download_button("💾 Download .txt", text, file_name="balls_logistics_report.txt", use_container_width=True, key="dl_report_settings")
 
