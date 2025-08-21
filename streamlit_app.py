@@ -759,11 +759,19 @@ elif page == "settings":
                 f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}")
         return "\n".join(lines)
 
-if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
-    txt = _build_quick_report()
-    st.text_area("Report", txt, height=260, key="report_txt_settings")
-    st.download_button("💾 Download .txt", txt, file_name="balls_logistics_report.txt", use_container_width=True,
-                       key="dl_report_settings")
+# Guard: render the Quick Report UI only on the Settings page
+if page == "settings":
+    if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
+        txt = _build_quick_report()
+        st.text_area("Report", txt, height=260, key="report_txt_settings")
+        st.download_button(
+            "💾 Download .txt",
+            txt,
+            file_name="balls_logistics_report.txt",
+            use_container_width=True,
+            key="dl_report_settings",
+        )
+
 
 # ------------------------- Statistics (bottom compact block) -------------------------
 st.markdown("---")
