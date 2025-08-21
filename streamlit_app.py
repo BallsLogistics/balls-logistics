@@ -351,47 +351,39 @@ NAV = [
     ("settings", "⚙️ Settings"),
 ]
 
-# 3×2 grid of page buttons (3 columns × 2 rows) — enforced via CSS grid to prevent stacking on iPhone
-st.markdown("""
-<style>
-  /* Force Streamlit's horizontal blocks (created by st.columns) into a 3-col grid */
-  .nav-fixed3 [data-testid="stHorizontalBlock"]{
-    display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important;
-    gap: .35rem !important;
-  }
-  .nav-fixed3 [data-testid="stHorizontalBlock"] > div{
-    width: auto !important; /* cancel Streamlit flex width */
-    flex: none !important;
-  }
-  /* Active (disabled) styling */
-  .nav-fixed3 .stButton button:disabled { background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; opacity:1 !important; }
-  .nav-fixed3 .stButton button:disabled:focus { outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.35) !important; }
-  /* Idle */
-  .nav-fixed3 .stButton button:not(:disabled){ background:#fff; border:1px solid #e5e7eb; }
-  @media (prefers-color-scheme: dark){
-    .nav-fixed3 .stButton button:not(:disabled){ background:#111827; border-color:#374151; color:#e5e7eb; }
-    .nav-fixed3 .stButton button:disabled{ background:#3b82f6 !important; border-color:#3b82f6 !important; color:#fff !important; }
-  }
-</style>
-""", unsafe_allow_html=True)
+# HTML-based 3×2 nav (anchors) — rock-solid on iPhone Safari
+# Sync page from query param if present
+_qp_page = st.query_params.get("page")
+if isinstance(_qp_page, (list, tuple)):
+    _qp_page = _qp_page[0] if _qp_page else None
+if _qp_page in [k for k, _ in NAV]:
+    st.session_state.page = _qp_page
 
-st.markdown('<div class="nav-fixed3">', unsafe_allow_html=True)
-# Row 1 (3 buttons)
-c1, c2, c3 = st.columns(3, gap="small")
-for (k, label), col in zip(NAV[0:3], (c1, c2, c3)):
-    with col:
-        active = (st.session_state.page == k)
-        if st.button(label, key=f"nav_{k}", use_container_width=True, disabled=active):
-            st.session_state.page = k
-# Row 2 (3 buttons)
-c4, c5, c6 = st.columns(3, gap="small")
-for (k, label), col in zip(NAV[3:6], (c4, c5, c6)):
-    with col:
-        active = (st.session_state.page == k)
-        if st.button(label, key=f"nav_{k}", use_container_width=True, disabled=active):
-            st.session_state.page = k
-st.markdown('</div>', unsafe_allow_html=True)
+_active = st.session_state.page
+
+# Build HTML anchor grid (3 columns × 2 rows)
+_nav_items = []
+for k, label in NAV:
+    cls = "nav-btn active" if _active == k else "nav-btn"
+    # Use relative link with page param; keeps reload simple
+    _nav_items.append(f'<a class="{cls}" href="?page={k}">{label}</a>' if _active != k else f'<span class="{cls}">{label}</span>')
+
+st.markdown(
+    """
+    <style>
+      .nav-table { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
+      .nav-btn { display: inline-block; text-align: center; padding: .55rem .6rem; border-radius: .6rem; text-decoration: none; border: 1px solid #e5e7eb; background: #ffffff; color: inherit; }
+      .nav-btn.active { background: #2563eb; color: #ffffff; border-color: #2563eb; pointer-events: none; }
+      @media (prefers-color-scheme: dark) {
+        .nav-btn { background: #111827; border-color: #374151; color: #e5e7eb; }
+        .nav-btn.active { background: #3b82f6; border-color: #3b82f6; color: #ffffff; }
+      }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown('<div class="nav-table">' + "".join(_nav_items) + '</div>', unsafe_allow_html=True)
 
 page = st.session_state.page
 st.title("🚛 Balls Logistics")
