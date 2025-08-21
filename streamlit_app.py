@@ -757,8 +757,8 @@ elif page == "settings":
         for e in st.session_state.earnings:
             lines.append(
                 f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}")
-        return "
-".join(lines)
+        return "\n".join(lines)
+
 
 if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
     txt = _build_quick_report()
