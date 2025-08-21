@@ -290,36 +290,29 @@ total_exp = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
 total_earn = sum(e.get("owner", 0.0) for e in st.session_state.earnings)
 net_income = total_earn - total_exp
 
-# Force 2×2 metrics on iPhone using CSS grid override
-st.markdown("""
-    <style>
-      .dash-2x2 [data-testid="stHorizontalBlock"]{
-        display:grid !important;
-        grid-template-columns: 1fr 1fr !important;
-        gap:.5rem !important;
-      }
-      .dash-2x2 [data-testid="stHorizontalBlock"] > div{
-        width:auto !important; flex:none !important;
-      }
-    </style>
+# Strict 2×2 metrics grid using pure HTML (won't stack on iPhone)
+st.markdown(f"""
+<div class="metric-grid">
+  <div class="metric"><div class="metric-label">Total Miles</div><div class="metric-value">{st.session_state.total_miles:.2f} mi</div></div>
+  <div class="metric"><div class="metric-label">Fuel Used</div><div class="metric-value">{st.session_state.total_gallons:.2f} gal</div></div>
+  <div class="metric"><div class="metric-label">Fuel Cost</div><div class="metric-value">${st.session_state.total_cost:.2f}</div></div>
+  <div class="metric"><div class="metric-label">Owner Earnings</div><div class="metric-value">${total_earn:.2f}</div></div>
+</div>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="dash-2x2">', unsafe_allow_html=True)
-# Row 1
-r1c1, r1c2 = st.columns(2)
-with r1c1:
-    st.metric("Total Miles", f"{st.session_state.total_miles:.2f} mi")
-with r1c2:
-    st.metric("Fuel Used", f"{st.session_state.total_gallons:.2f} gal")
-# Row 2
-r2c1, r2c2 = st.columns(2)
-with r2c1:
-    st.metric("Fuel Cost", f"${st.session_state.total_cost:.2f}")
-with r2c2:
-    st.metric("Owner Earnings", f"${total_earn:.2f}")
-
 st.caption(f"Net (Owner − Expenses): ${net_income:.2f}")
-st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+  .metric-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:.5rem; }
+  .metric{ border:1px solid var(--border-color, #e5e7eb); border-radius:.6rem; padding:.55rem .7rem; background: var(--metric-bg, #ffffff); }
+  .metric-label{ font-size:.78rem; opacity:.75; margin-bottom:.15rem; }
+  .metric-value{ font-size:1.05rem; font-weight:600; }
+  @media (prefers-color-scheme: dark){
+    .metric{ background:#0b1220; border-color:#2a3342; }
+  }
+</style>
+""", unsafe_allow_html=True)
 
 with st.expander("📁 Backup & Restore", expanded=False):
     def export_data():
@@ -358,20 +351,26 @@ NAV = [
     ("settings", "⚙️ Settings"),
 ]
 
-# 3×2 grid of page buttons (3 columns × 2 rows) — flex layout that does NOT stack on iPhone
+# 3×2 grid of page buttons (3 columns × 2 rows) — robust flex layout
 st.markdown("""
     <style>
       .nav-grid{ display:flex; flex-wrap:wrap; gap:.35rem; }
-      .nav-grid .stButton{ flex:0 0 calc(33.333% - .35rem); margin:0; }
-      .nav-grid .stButton button{ width:100%; }
-      /* Active (disabled) button styling */
-      .nav-grid .stButton button:disabled { background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; opacity:1 !important; }
-      .nav-grid .stButton button:disabled:focus { outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.35) !important; }
-      /* Idle buttons */
-      .nav-grid .stButton button:not(:disabled){ background:#fff; border:1px solid #e5e7eb; }
+      /* Make each button container take 1/3 width */
+      .nav-grid [data-testid="stButton"],
+      .nav-grid div.element-container:has(> div [data-testid="stButton"]) { flex:0 0 calc(33.333% - .35rem) !important; margin:0 !important; }
+      /* Ensure inner wrappers fill width */
+      .nav-grid [data-testid="stButton"] > div { width:100% !important; }
+      .nav-grid [data-testid="stButton"] button, .nav-grid button[kind] { width:100% !important; display:block !important; }
+
+      /* Active (disabled) styling */
+      .nav-grid [data-testid="stButton"] button:disabled { background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; opacity:1 !important; }
+      .nav-grid [data-testid="stButton"] button:disabled:focus { outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.35) !important; }
+
+      /* Idle */
+      .nav-grid [data-testid="stButton"] button:not(:disabled){ background:#fff; border:1px solid #e5e7eb; }
       @media (prefers-color-scheme: dark){
-        .nav-grid .stButton button:not(:disabled){ background:#111827; border-color:#374151; color:#e5e7eb; }
-        .nav-grid .stButton button:disabled{ background:#3b82f6 !important; border-color:#3b82f6 !important; color:#fff !important; }
+        .nav-grid [data-testid="stButton"] button:not(:disabled){ background:#111827; border-color:#374151; color:#e5e7eb; }
+        .nav-grid [data-testid="stButton"] button:disabled{ background:#3b82f6 !important; border-color:#3b82f6 !important; color:#fff !important; }
       }
     </style>
 """, unsafe_allow_html=True)
