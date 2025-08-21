@@ -7,23 +7,24 @@ from streamlit_cookies_manager import EncryptedCookieManager
 from firebase_config import auth, db, firebase_app  # uses @st.cache_resource inside
 
 
-
+# --- Basic guard ---
 if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID"]):
     st.stop()  # prevents half-initialized app from running
 
 # MUST be the first Streamlit call
 st.set_page_config(page_title="🚛 Balls Logistics", layout="centered", initial_sidebar_state="collapsed")
 
-# --- URL routing helpers (works across Streamlit versions) ---
+# ----------------------- URL routing helpers -----------------------
 def _set_qp(**kwargs):
     try:
         st.query_params.update(kwargs)
     except Exception:
         st.experimental_set_query_params(**kwargs)
 
-def switch_page(page_id: str):
+def switch_page(page_id: str, write_qp: bool = True):
     st.session_state.page = page_id
-    _set_qp(page=page_id)
+    if write_qp:
+        _set_qp(page=page_id)
 
 # Read ?page= on first load
 try:
@@ -33,113 +34,78 @@ except Exception:
 if "page" in _qp:
     st.session_state.page = _qp["page"][0] if isinstance(_qp["page"], list) else _qp["page"]
 
+# ----------------------- Mobile sticky bottom nav -----------------------
 def mobile_bottom_nav(current: str):
-    # Anchor to target with CSS
+    # Anchor so the next container becomes sticky via CSS
     st.markdown('<span id="bl-nav-anchor"></span>', unsafe_allow_html=True)
-    # The very next container becomes our sticky bar via CSS below
     with st.container():
         cols = st.columns(6)
         items = [
-            ("⛽ Fuel",      "mileage"),
-            ("💸 Expenses",  "expenses"),
-            ("💰 Income",    "earnings"),
-            ("📜 Log",       "log"),
-            ("📁 Upload",    "upload"),
-            ("⚙️ Settings",  "settings"),
+            ("mileage",  "⛽ Fuel"),
+            ("expenses", "💸 Expenses"),
+            ("earnings", "💰 Income"),
+            ("log",      "📜 Log"),
+            ("upload",   "📁 Upload"),
+            ("settings", "⚙️ Settings"),
         ]
-        for (label, pid), col in zip(items, cols):
+        for (pid, label), col in zip(items, cols):
             with col:
-                active = (current == pid)
-                btn = f"**{label}**" if active else label
+                is_active = (current == pid)
+                label_to_show = f"**{label}**" if is_active else label
+                # IMPORTANT: do NOT update query params from mobile to avoid reloads
                 st.button(
-                    btn,
+                    label_to_show,
                     key=f"mnav_{pid}",
                     use_container_width=True,
-                    on_click=lambda p=pid: switch_page(p),
+                    on_click=lambda p=pid: switch_page(p, write_qp=False),
                 )
 
-# --- Layout & sticky-nav CSS ---
-st.markdown("""
+# ----------------------- Layout & sticky-nav CSS -----------------------
+st.markdown(
+    """
 <style>
-    /* Don't show the big main-area Logout on phones; sticky bar has one */
-    @media (max-width: 768px){
-        .bl-main-logout { display: none !important; }
-    }
-    /* Ensure the sticky bar always catches taps (no click-through on gaps) */
-    #bl-bottom-nav { pointer-events: auto; }
-    #bl-bottom-nav * { pointer-events: auto; }
-    
-    /* Show desktop top nav, hide it on phones */
-    .bl-desktop-nav { display: block; }
-    @media (max-width: 768px) { .bl-desktop-nav { display: none !important; } }
-    
-    /* Give room for a fixed bottom bar on phones */
-    @media (max-width: 768px) {
-      .block-container { padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
-    }
-    
-    /* Active-state styling for the desktop top nav (we render the active one as disabled) */
-    .bl-topnav .stButton > button[disabled]{
-      opacity: 1;
-      font-weight: 700;
-      border: 1px solid rgba(0,0,0,.25);
-    }
-    @media (prefers-color-scheme: dark){
-      .bl-topnav .stButton > button[disabled]{ border-color: rgba(255,255,255,.25); }
-    }
-    
-    /* Sticky bottom nav (mobile only) */
-    #bl-bottom-nav { display: none; }
-    @media (max-width: 768px) {
-      #bl-bottom-nav {
-        position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
-        padding: 8px calc(10px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
-        background: rgba(255,255,255,.92);
-        backdrop-filter: blur(6px);
-        border-top: 1px solid rgba(0,0,0,.08);
-        display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
-      }
-      #bl-bottom-nav a {
-        display: inline-block; text-align: center; text-decoration: none;
-        padding: 10px 4px; border-radius: 12px; font-size: .9rem; line-height: 1.1;
-        border: 1px solid rgba(0,0,0,.06);
-      }
-      #bl-bottom-nav a.active {
-        background: rgba(0,0,0,.06);
-        font-weight: 700;
-        border-color: rgba(0,0,0,.18);
-      }
-    }
-    
-    /* Dark mode for the mobile bar */
-    @media (max-width: 768px) and (prefers-color-scheme: dark){
-      #bl-bottom-nav { background: rgba(30,30,30,.88); border-top-color: rgba(255,255,255,.12); }
-      #bl-bottom-nav a.active { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.20); }
-    }
-    
-    /* Make the first container after #bl-nav-anchor sticky on phones */
-    @media (max-width: 768px){
-        #bl-nav-anchor + div {
-         position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
-         padding: 8px calc(10px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
-         background: rgba(255,255,255,.92);
-         backdrop-filter: blur(6px);
-         border-top: 1px solid rgba(0,0,0,.08);
-        }
-        /* tighter gutters for the 6 columns */
-        #bl-nav-anchor + div [data-testid="column"] > div { padding: 0 .25rem; }
-        /* ensure page content leaves room for the bar */
-        .block-container { padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
-        }
-    /* Dark mode tweak */
-    @media (max-width: 768px) and (prefers-color-scheme: dark){
-        #bl-nav-anchor + div { background: rgba(30,30,30,.88); border-top-color: rgba(255,255,255,.12); }
+/* Hide the big main-area Logout on phones (sticky bar can host one if needed) */
+@media (max-width:768px){ .bl-main-logout{ display:none !important; } }
+
+/* Desktop top nav visible, hidden on phones */
+.bl-desktop-nav{ display:block; }
+@media (max-width:768px){ .bl-desktop-nav{ display:none !important; } }
+
+/* Leave space for the sticky bar */
+@media (max-width:768px){
+  .block-container{ padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
+}
+
+/* Active-state styling for the desktop top nav (we render the active one as disabled) */
+.bl-topnav .stButton > button[disabled]{
+  opacity:1; font-weight:700; border:1px solid rgba(0,0,0,.25);
+}
+@media (prefers-color-scheme:dark){
+  .bl-topnav .stButton > button[disabled]{ border-color:rgba(255,255,255,.25); }
+}
+
+/* Make the first container after #bl-nav-anchor sticky on phones */
+@media (max-width:768px){
+  #bl-nav-anchor + div{
+    position:fixed; left:0; right:0; bottom:0; z-index:1000;
+    padding:8px calc(10px + env(safe-area-inset-right))
+            calc(10px + env(safe-area-inset-bottom))
+            calc(10px + env(safe-area-inset-left));
+    background:rgba(255,255,255,.92);
+    backdrop-filter:blur(6px);
+    border-top:1px solid rgba(0,0,0,.08);
+  }
+  #bl-nav-anchor + div [data-testid="column"] > div{ padding:0 .25rem; }
+}
+@media (max-width:768px) and (prefers-color-scheme:dark){
+  #bl-nav-anchor + div{ background:rgba(30,30,30,.88); border-top-color:rgba(255,255,255,.12); }
+}
 </style>
+""",
+    unsafe_allow_html=True,
+)
 
-""", unsafe_allow_html=True)
-
-
-# --- Auth debug + hard logout helpers ---
+# ----------------------- Auth debug + hard logout helpers -----------------------
 def _force_logout():
     st.session_state.user = None
     try:
@@ -150,11 +116,9 @@ def _force_logout():
     rerun()
 
 # Allow URL-based logout: add ?logout=1 to the URL
-qs = st.query_params           # dict-like
-if "logout" in qs:             # open with ?logout=1 to force the login screen
+qs = st.query_params
+if "logout" in qs:
     _force_logout()
-
-
 
 
 def rerun():
@@ -162,13 +126,10 @@ def rerun():
     if callable(fn):
         fn()
 
-
-
-
-# --- Cookie Manager ---
+# ----------------------- Cookie Manager -----------------------
 cookies = EncryptedCookieManager(
     prefix="bl_",
-    password=st.secrets["cookie_password"]
+    password=st.secrets["cookie_password"],
 )
 
 # Graceful fallback if cookies are blocked (iOS Safari / private mode / embedded)
@@ -176,17 +137,20 @@ if "allow_cookie_fallback" not in st.session_state:
     st.session_state.allow_cookie_fallback = False
 
 if not cookies.ready() and not st.session_state.allow_cookie_fallback:
-    st.info("We use a small cookie to keep you signed in. On iPhone, Safari may block it.")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🔁 Retry cookies"):
-            rerun()
-    with c2:
-        if st.button("➡️ Continue without cookies"):
-            st.session_state.allow_cookie_fallback = True
-            rerun()
-    st.stop()
-
+    # If the user is already logged in for this session, allow fallback automatically
+    if st.session_state.get("user"):
+        st.session_state.allow_cookie_fallback = True
+    else:
+        st.info("We use a small cookie to keep you signed in. On iPhone, Safari may block it.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🔁 Retry cookies"):
+                rerun()
+        with c2:
+            if st.button("➡️ Continue without cookies"):
+                st.session_state.allow_cookie_fallback = True
+                rerun()
+        st.stop()
 
 COOKIE_KEY = "auth"
 
@@ -283,7 +247,7 @@ if st.session_state.user is None:
                     "localId": user["localId"],
                     "idToken": user["idToken"],
                     "refreshToken": user["refreshToken"],
-                    "email": email
+                    "email": email,
                 }
                 _persist_user_to_browser(st.session_state.user)
                 st.success("✅ Logged in successfully!")
@@ -308,7 +272,7 @@ if st.session_state.user is None:
                         "localId": user["localId"],
                         "idToken": user["idToken"],
                         "refreshToken": user["refreshToken"],
-                        "email": email
+                        "email": email,
                     }
                     _persist_user_to_browser(st.session_state.user)
                     st.success("✅ Registration successful!")
@@ -343,13 +307,11 @@ with st.sidebar:
 if st.session_state.get("allow_cookie_fallback"):
     st.warning("Cookie fallback mode: you’ll stay signed in only until you reload/close this tab. On Safari, allow cookies or open the app in a non-private tab to remember your session.")
 
-
 # Put a visible Logout button in the main area (mobile-safe and full width)
 st.markdown('<div class="bl-main-logout">', unsafe_allow_html=True)
 st.button("🚪 Logout", key="logout_main", use_container_width=True, on_click=logout)
 st.markdown('</div>', unsafe_allow_html=True)
 st.caption("Session active")
-
 
 # ----------------------- Device Profile Detection -----------------------
 if "device_profile" not in st.session_state:
@@ -367,7 +329,7 @@ def save_data():
         "last_trip_summary": st.session_state.last_trip_summary,
         "log": st.session_state.log,
         "expenses": st.session_state.expenses,
-        "earnings": st.session_state.earnings
+        "earnings": st.session_state.earnings,
     }
     db.child("users").child(uid).set(data, st.session_state.user['idToken'])
 
@@ -386,7 +348,7 @@ def load_data():
             st.session_state.log = data.get("log", [])
             st.session_state.expenses = data.get("expenses", [])
             st.session_state.earnings = data.get("earnings", [])
-    except:
+    except Exception:
         st.warning("No data found for user. Starting fresh.")
 
 # ----------------------- Load on First App Run -----------------------
@@ -408,10 +370,6 @@ elif layout == "tablet":
 else:
     st.info("💻 Desktop layout detected")
 
-# Now the rest of your app logic should go below
-# Be sure to include this line after any state change:
-# st.session_state.pending_changes = True
-
 # ----------------------- Export/Import Functions -----------------------
 
 def export_data():
@@ -424,7 +382,7 @@ def export_data():
         "last_trip_summary": st.session_state.last_trip_summary,
         "log": st.session_state.log,
         "expenses": st.session_state.expenses,
-        "earnings": st.session_state.earnings
+        "earnings": st.session_state.earnings,
     }
     return json.dumps(data, indent=4).encode("utf-8")
 
@@ -456,7 +414,7 @@ def init_session():
         "page": "mileage",
         "last_trip_summary": {},
         "expenses": [],
-        "earnings": []
+        "earnings": [],
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -484,21 +442,12 @@ with col2:
     st.metric("Net Income", f"${net_income:.2f}")
 
 # ----------------------- Ensure Save After Edits -----------------------
-
-# Example placeholder save hooks (expand in full code):
-if "new_expense_added" in st.session_state and st.session_state.new_expense_added:
-    save_data()
-    st.session_state.new_expense_added = False
-
-if "new_trip_added" in st.session_state and st.session_state.new_trip_added:
-    save_data()
-    st.session_state.new_trip_added = False
-
-if "new_earning_added" in st.session_state and st.session_state.new_earning_added:
-    save_data()
-    st.session_state.new_earning_added = False
-
-
+if st.session_state.get("new_expense_added"):
+    save_data(); st.session_state.new_expense_added = False
+if st.session_state.get("new_trip_added"):
+    save_data(); st.session_state.new_trip_added = False
+if st.session_state.get("new_earning_added"):
+    save_data(); st.session_state.new_earning_added = False
 
 # ----------------------- Backup & Restore UI -----------------------
 st.markdown("### 📁 Backup & Restore")
@@ -508,7 +457,7 @@ st.download_button(
     label="📥 Download Backup JSON",
     data=exported,
     file_name="balls_logistics_backup.json",
-    mime="application/json"
+    mime="application/json",
 )
 
 uploaded_file = st.file_uploader("📂 Upload Backup JSON", type="json")
@@ -538,11 +487,9 @@ if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
         st.altair_chart(
             alt.Chart(mpg_df).mark_line(point=True).encode(
                 x="Date:T",
-                y="MPG:Q"
-            ).properties(
-                title="MPG Per Trip"
-            ),
-            use_container_width=True
+                y="MPG:Q",
+            ).properties(title="MPG Per Trip"),
+            use_container_width=True,
         )
 
     if st.session_state.expenses:
@@ -552,17 +499,14 @@ if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
             alt.Chart(df_exp).mark_arc().encode(
                 theta="amount",
                 color="type",
-                tooltip=["type", "amount"]
-            ).properties(
-                title="Expenses by Category"
-            ),
-            use_container_width=True
+                tooltip=["type", "amount"],
+            ).properties(title="Expenses by Category"),
+            use_container_width=True,
         )
 else:
     st.info("Add trip and fuel data to see statistics.")
 
-# ----------------------- PDF Report Generator -----------------------
-
+# ----------------------- Report Generator -----------------------
 st.markdown("---")
 st.markdown("### 📄 Generate Printable Report")
 
@@ -591,74 +535,39 @@ if st.button("🖨️ Generate Report Text"):
     st.download_button("💾 Download as .txt", report_text, file_name="balls_logistics_report.txt")
 
 # ----------------------- UI Enhancements -----------------------
-st.markdown("""
+st.markdown(
+    """
     <style>
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 3rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
-        max-width: 800px;
-    }
+    .block-container { padding-top: 1rem; padding-bottom: 3rem; padding-left: 1rem; padding-right: 1rem; max-width: 800px; }
     @media screen and (max-width: 600px) {
-        .block-container {
-            padding-left: 0.5rem;
-            padding-right: 0.5rem;
-        }
-        .stButton button {
-            font-size: 1rem;
-            padding: 0.4rem 0.8rem;
-        }
+        .block-container { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .stButton button { font-size: 1rem; padding: 0.4rem 0.8rem; }
     }
-    input[type=number]::-webkit-outer-spin-button,
-    input[type=number]::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
-    input[type=number] {
-        appearance: textfield;
-    }
-    .stButton button {
-        border-radius: 0.5rem;
-        padding: 0.6rem 1.2rem;
-    }
+    input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { appearance: textfield; }
+    .stButton button { border-radius: 0.5rem; padding: 0.6rem 1.2rem; }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
-
-# ----------------------- Session State Initialization -----------------------
-if "edit_expense_index" not in st.session_state:
-    st.session_state.edit_expense_index = None
-
-if "baseline" not in st.session_state:
-    st.session_state.baseline = None
-
-if "log" not in st.session_state:
-    st.session_state.log = []
-
-if "total_miles" not in st.session_state:
-    st.session_state.total_miles = 0.0
-
-if "total_cost" not in st.session_state:
-    st.session_state.total_cost = 0.0
-
-if "total_gallons" not in st.session_state:
-    st.session_state.total_gallons = 0.0
-
-if "last_mileage" not in st.session_state:
-    st.session_state.last_mileage = None
-
-if "page" not in st.session_state:
-    st.session_state.page = "mileage"
-
-if "last_trip_summary" not in st.session_state:
-    st.session_state.last_trip_summary = {}
-
-if "expenses" not in st.session_state:
-    st.session_state.expenses = []
-
-if "earnings" not in st.session_state:
-    st.session_state.earnings = []
+# ----------------------- Session State Initialization (keys) -----------------------
+# (init_session already sets these; this is just defensive if something cleared state)
+for _k, _v in {
+    "edit_expense_index": None,
+    "baseline": None,
+    "log": [],
+    "total_miles": 0.0,
+    "total_cost": 0.0,
+    "total_gallons": 0.0,
+    "last_mileage": None,
+    "page": "mileage",
+    "last_trip_summary": {},
+    "expenses": [],
+    "earnings": [],
+}.items():
+    if _k not in st.session_state:
+        st.session_state[_k] = _v
 
 # ---------------------------- Navigation Bar (top) ----------------------------
 st.markdown('<div class="bl-desktop-nav bl-topnav">', unsafe_allow_html=True)
@@ -676,7 +585,6 @@ _cur = st.session_state.get("page", "mileage")
 for col, (label, pid) in zip(nav_cols, nav_buttons):
     with col:
         if pid == _cur:
-            # Show as selected
             st.button(label, use_container_width=True, disabled=True, key=f"nav_disabled_{pid}")
         else:
             if st.button(label, use_container_width=True, key=f"nav_{pid}"):
@@ -684,12 +592,12 @@ for col, (label, pid) in zip(nav_cols, nav_buttons):
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-
-# ---------------------------- PAGE 1: Mileage + Fuel ----------------------------
+# ---------------------------- Pages ----------------------------
 # Default page (MUST be set before the page sections)
 page_name = st.session_state.get("page", "mileage")
 st.title("🚛 Real Balls Logistics Management")
 
+# PAGE 1: Mileage + Fuel
 if page_name == "mileage":
     with st.container():
         st.subheader("📍 Baseline Mileage")
@@ -750,15 +658,13 @@ if page_name == "mileage":
                             "mpg": mpg,
                             "total_cost": total_fuel_cost,
                             "cost_per_mile": cost_per_mile,
-                            "note": "Mileage + Fuel"
+                            "note": "Mileage + Fuel",
                         }
 
                         st.session_state.log.append(log_entry)
                         st.session_state.last_trip_summary = log_entry
                         st.session_state.pending_changes = True
                         rerun()
-
-                        st.session_state.pending_changes = True
 
                 except ZeroDivisionError:
                     st.error("Calculation error: Make sure gallons used is not zero.")
@@ -786,19 +692,12 @@ if page_name == "mileage":
             )
             st.write(f"**Cost per Mile (Overall):** ${overall_cost_per_mile:.2f}")
 
-# ---------------------------- PAGE 2: Expenses ----------------------------
+# PAGE 2: Expenses
 elif page_name == "expenses":
     st.subheader("💸 Expense Logging")
 
     expense_options = [
-        "Fuel",
-        "Repair",
-        "Certificates",
-        "Insurance",
-        "Trailer Rent",
-        "IFTA",
-        "Reefer Fuel",
-        "Other"
+        "Fuel", "Repair", "Certificates", "Insurance", "Trailer Rent", "IFTA", "Reefer Fuel", "Other"
     ]
 
     today = datetime.now().strftime("%Y-%m-%d")
@@ -812,14 +711,14 @@ elif page_name == "expenses":
                 "date": today,
                 "type": expense_type,
                 "description": description,
-                "amount": amount
+                "amount": amount,
             }
             st.session_state.expenses.append(expense)
             st.session_state.log.append({
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "type": "Expense",
                 "amount": amount,
-                "note": f"{expense_type}: {description}"
+                "note": f"{expense_type}: {description}",
             })
             st.success("Expense added.")
             st.session_state.pending_changes = True
@@ -838,9 +737,8 @@ elif page_name == "expenses":
             new_type = st.selectbox(
                 "Expense Type",
                 expense_options,
-                index=expense_options.index(expense["type"]) if expense["type"] in expense_options else len(
-                    expense_options) - 1,
-                key=f"edit_type_{idx}"
+                index=expense_options.index(expense["type"]) if expense["type"] in expense_options else len(expense_options) - 1,
+                key=f"edit_type_{idx}",
             )
 
             new_description = st.text_input("Description", value=expense["description"], key=f"edit_description_{idx}")
@@ -853,7 +751,7 @@ elif page_name == "expenses":
                         "date": expense["date"],
                         "type": new_type,
                         "description": new_description,
-                        "amount": new_amount
+                        "amount": new_amount,
                     }
                     st.session_state.pending_changes = True
                     st.session_state.edit_expense_index = None
@@ -892,8 +790,7 @@ elif page_name == "expenses":
     total_expense_amount = sum(entry["amount"] for entry in st.session_state.expenses)
     st.markdown(f"### 💵 Total Expenses: **${total_expense_amount:.2f}**")
 
-
-# ---------------------------- PAGE 3: Income ----------------------------
+# PAGE 3: Income
 elif page_name == "earnings":
     st.subheader("💰 Income Tracking")
 
@@ -908,14 +805,14 @@ elif page_name == "earnings":
             "date": today,
             "worker": worker_earning,
             "owner": owner_earning,
-            "net_owner": owner_net
+            "net_owner": owner_net,
         }
         st.session_state.earnings.append(earning)
         st.session_state.log.append({
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "type": "Income",
             "amount": owner_earning,
-            "note": f"Worker: ${worker_earning:.2f}, Owner Net: ${owner_net:.2f}"
+            "note": f"Worker: ${worker_earning:.2f}, Owner Net: ${owner_net:.2f}",
         })
         st.success("Earning recorded!")
         st.session_state.pending_changes = True
@@ -933,11 +830,8 @@ elif page_name == "earnings":
         chart = alt.Chart(df).mark_line(point=True).encode(
             x="date:T",
             y=alt.Y("net_owner:Q", title="Net Owner Income"),
-            tooltip=["date", "net_owner"]
-        ).properties(
-            title="Net Owner Income Over Time",
-            width=600
-        )
+            tooltip=["date", "net_owner"],
+        ).properties(title="Net Owner Income Over Time", width=600)
         st.altair_chart(chart, use_container_width=True)
 
         # CSV Export
@@ -953,10 +847,7 @@ elif page_name == "earnings":
     else:
         st.info("No earnings recorded yet.")
 
-
-
-
-# ---------------------------- PAGE 4: Data Log ----------------------------
+# PAGE 4: Data Log
 elif page_name == "log":
     st.subheader("📜 All Input Records")
     if st.session_state.log:
@@ -975,7 +866,7 @@ elif page_name == "log":
     else:
         st.info("No data recorded yet.")
 
-# ---------------------------- PAGE 5: Upload ----------------------------
+# PAGE 5: Upload
 elif page_name == "upload":
     st.subheader("📁 Upload Files")
     uploaded_files = st.file_uploader("Upload any file(s):", accept_multiple_files=True)
@@ -983,7 +874,7 @@ elif page_name == "upload":
         for f in uploaded_files:
             st.success(f"Uploaded: {f.name}")
 
-# ---------------------------- PAGE 6: Settings ----------------------------
+# PAGE 6: Settings
 elif page_name == "settings":
     st.subheader("⚙️ App Settings")
 
@@ -1007,7 +898,6 @@ elif page_name == "settings":
             _forget_persisted_user_in_browser()
             st.markdown("<script>window.location.reload();</script>", unsafe_allow_html=True)
 
-
-# ---------------------------- Mobile sticky bottom nav ----------------------------
+# ---------------------------- Render mobile sticky bottom nav ----------------------------
 _current = st.session_state.get("page", "mileage")
-mobile_bottom_nav(st.session_state.get("page", "mileage"))
+mobile_bottom_nav(_current)
