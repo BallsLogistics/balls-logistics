@@ -405,6 +405,36 @@ st.markdown(
 
 st.markdown('<div class="nav-table nav-sticky">' + "".join(_nav_items) + '</div>', unsafe_allow_html=True)
 
+# Force same-tab navigation on iOS Safari (prevent new-tab + logout)
+st.markdown(
+    """
+    <script>
+      (function(){
+        function wireNav(){
+          const nav = document.querySelector('.nav-table');
+          if(!nav) return;
+          nav.querySelectorAll('a.nav-btn, .nav-btn[href]')?.forEach?.(a => {
+            try { a.setAttribute('target','_self'); } catch(e){}
+            a.addEventListener('click', function(ev){
+              ev.preventDefault(); ev.stopPropagation();
+              const href = this.getAttribute('href');
+              if(!href) return;
+              const url = new URL(href, window.location.href);
+              const current = new URL(window.location.href);
+              current.searchParams.set('page', url.searchParams.get('page'));
+              window.history.replaceState({}, '', current);
+              window.location.assign(current);
+            }, {passive:false});
+          });
+        }
+        document.addEventListener('DOMContentLoaded', wireNav);
+        setTimeout(wireNav, 250);
+      })();
+    </script>
+    """,
+    unsafe_allow_html=True,
+)
+
 page = st.session_state.page
 st.title("🚛 Balls Logistics")
 
