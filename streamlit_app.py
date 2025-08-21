@@ -383,7 +383,27 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="nav-table">' + "".join(_nav_items) + '</div>', unsafe_allow_html=True)
+# Sticky bottom nav + larger tap targets + hide chrome
+st.markdown(
+    """
+    <style>
+      .nav-sticky { position:fixed; left:0; right:0; bottom:0; padding:.5rem .6rem calc(env(safe-area-inset-bottom) + .6rem) .6rem; background:rgba(255,255,255,.96); border-top:1px solid #e5e7eb; backdrop-filter:saturate(180%) blur(6px); z-index:9999; }
+      .nav-table { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
+      .nav-btn { display:inline-flex; align-items:center; justify-content:center; text-align:center; padding:.65rem .7rem; min-height:44px; border-radius:.8rem; text-decoration:none; border:1px solid #e5e7eb; background:#ffffff; color:inherit; }
+      .nav-btn.active { background:#2563eb; color:#ffffff; border-color:#2563eb; pointer-events:none; }
+      .block-container { padding-bottom: 6.5rem !important; }
+      #MainMenu, header, footer { visibility: hidden; }
+      @media (prefers-color-scheme: dark) {
+        .nav-btn { background:#111827; border-color:#374151; color:#e5e7eb; }
+        .nav-btn.active { background:#3b82f6; border-color:#3b82f6; color:#ffffff; }
+        .nav-sticky { background:rgba(17,24,39,.9); border-top-color:#374151; }
+      }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown('<div class="nav-table nav-sticky">' + "".join(_nav_items) + '</div>', unsafe_allow_html=True)
 
 page = st.session_state.page
 st.title("🚛 Balls Logistics")
@@ -407,50 +427,122 @@ if page == "mileage":
             st.caption(f"Current: **{st.session_state.last_mileage}**")
 
     st.markdown("**Enter Trip Data**")
-    c1, c2, c3 = st.columns(3, gap="small")
-    with c1:
-        new_mileage = st.number_input("Odometer", min_value=0.0, step=0.1, placeholder="150350", key="mileage")
-    with c2:
-        gallons = st.number_input("Gallons", min_value=0.0, step=0.1, placeholder="20.5", key="gallons")
-    with c3:
-        fuel_cost = st.number_input("Fuel $", min_value=0.0, step=0.01, placeholder="85.00", key="fuel_cost")
 
-    is_valid = True
-    if st.session_state.baseline is not None and st.session_state.last_mileage is not None:
-        if new_mileage <= (st.session_state.last_mileage or 0):
-            st.warning("Odometer must increase.")
-            is_valid = False
+c1, c2, c3 = st.columns(3, gap="small")
+with c1:
+    odometer_str = st.text_input("Odometer", placeholder="150350", key="mileage")
+with c2:
+    gallons_str = st.text_input("Gallons", placeholder="20.5", key="gallons")
+with c3:
+    fuel_cost_str = st.text_input("Fuel $", placeholder="85.00", key="fuel_cost")
 
-    if st.button("✅ Confirm Trip", disabled=not is_valid, use_container_width=True):
-        if st.session_state.last_mileage is None:
-            st.error("Set baseline first.")
-        else:
-            distance = max(0.0, new_mileage - st.session_state.last_mileage)
+# Parse helpers (accepts comma or dot decimals)
+def _to_float(s: str):
+    try:
+        return float((s or "").replace(",", ".").strip())
+    except Exception:
+        return None
+
+new_mileage = _to_float(odometer_str)
+gallons = _to_float(gallons_str)
+fuel_cost = _to_float(fuel_cost_str)
+
+# Hint iOS to show numeric keypad
+st.markdown(
+    """
+    <script>
+      const hints = ["150350","20.5","85.00"]; // placeholders we used
+      for (const ph of hints) {
+        document.querySelectorAll(`input[placeholder="${ph}"]`).forEach(el => {
+          el.setAttribute('inputmode','decimal');
+          el.setAttribute('pattern','[0-9]*');
+        });
+      }
+    </script>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Support FAB via query param
+_action = st.query_params.get("action")
+if isinstance(_action, (list, tuple)):
+    _action = _action[0] if _action else None
+
+# Validate
+is_valid = True
+if new_mileage is None or gallons is None or fuel_cost is None:
+    is_valid = False
+elif st.session_state.baseline is None or st.session_state.last_mileage is None:
+    is_valid = False
+elif new_mileage <= (st.session_state.last_mileage or 0):
+    st.warning("Odometer must increase.")
+    is_valid = False
+
+confirm_click = st.button("✅ Confirm Trip", disabled=not is_valid, use_container_width=True)
+confirm_request = (_action == "confirm_trip")
+if confirm_request and not is_valid:
+    st.warning("Fill all fields before using the FAB.")
+
+if (confirm_click or (confirm_request and is_valid)):
+    if st.session_state.last_mileage is not None:
+        try:
+            distance = new_mileage - st.session_state.last_mileage
             if distance <= 0:
-                st.error("Trip distance is zero.")
+                st.error("Trip distance is zero. Enter a higher odometer value.")
             else:
-                mpg = distance / gallons if gallons > 0 else 0
-                cpm = fuel_cost / distance if distance > 0 else 0
+                mpg = distance / gallons if gallons and gallons > 0 else 0
+                cost_per_mile = fuel_cost / distance if distance > 0 else 0
+
                 st.session_state.total_miles += distance
-                st.session_state.total_cost += fuel_cost
-                st.session_state.total_gallons += gallons
+                st.session_state.total_cost += (fuel_cost or 0)
+                st.session_state.total_gallons += (gallons or 0)
                 st.session_state.last_mileage = new_mileage
-                entry = {
+
+                log_entry = {
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "type": "Trip",
                     "distance": distance,
-                    "gallons": gallons,
+                    "gallons": gallons or 0,
                     "mpg": mpg,
-                    "total_cost": fuel_cost,
-                    "cost_per_mile": cpm,
+                    "total_cost": fuel_cost or 0,
+                    "cost_per_mile": cost_per_mile,
                     "note": "Mileage + Fuel",
                 }
-                st.session_state.log.append(entry)
-                st.session_state.last_trip_summary = entry
+                st.session_state.log.append(log_entry)
+                st.session_state.last_trip_summary = log_entry
                 st.session_state.pending_changes = True
+                # If invoked via FAB, clean up the action param to avoid double-submit on refresh
+                if confirm_request:
+                    st.markdown(
+                        """
+                        <script>
+                          const url = new URL(window.location.href);
+                          url.searchParams.delete('action');
+                          window.history.replaceState({}, '', url);
+                        </script>
+                        """,
+                        unsafe_allow_html=True,
+                    )
                 rerun()
+        except ZeroDivisionError:
+            st.error("Gallons must be greater than zero.")
+    else:
+        st.error("Set baseline first.")
 
-    if st.session_state.last_trip_summary:
+# Floating Action Button (FAB) for quick confirm
+st.markdown(
+    """
+    <a class=\"fab-add\" href=\"?page=mileage&action=confirm_trip\">➕</a>
+    <style>
+      .fab-add { position:fixed; right: calc(env(safe-area-inset-right) + 1rem); bottom: calc(env(safe-area-inset-bottom) + 4.8rem); width:56px; height:56px; border-radius:9999px; display:flex; align-items:center; justify-content:center; background:#10b981; color:#fff; text-decoration:none; font-size:1.4rem; box-shadow: 0 6px 16px rgba(0,0,0,.25); z-index:10050; }
+      .fab-add:active { transform: translateY(1px); }
+      @media (prefers-color-scheme: dark){ .fab-add { background:#22c55e; } }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+if st.session_state.last_trip_summary:
         e = st.session_state.last_trip_summary
         st.markdown("**🧶 Last Trip**")
         c1, c2 = st.columns(2, gap="small")
