@@ -63,12 +63,14 @@ st.markdown(
 if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID", "cookie_password"]):
     st.stop()
 
+
 # ------------------------- Rerun Helper -------------------------
 
 def rerun():
     fn = getattr(st, "rerun", None) or getattr(st, "experimental_rerun", None)
     if callable(fn):
         fn()
+
 
 # ------------------------- Cookie Manager -------------------------
 cookies = EncryptedCookieManager(prefix="bl_", password=st.secrets["cookie_password"])
@@ -133,6 +135,7 @@ def _force_logout():
         pass
     st.success("Logged out.")
     rerun()
+
 
 if "logout" in qs:
     _force_logout()
@@ -225,10 +228,12 @@ if st.session_state.user is None:
 st.success(f"Logged in: {st.session_state.user.get('email')}")
 
 # Quick logout button (mobile top)
-st.button("🚪 Logout", key="logout_main", use_container_width=True, on_click=lambda: (_forget_persisted_user_in_browser(), st.session_state.update(user=None), rerun()))
+st.button("🚪 Logout", key="logout_main", use_container_width=True,
+          on_click=lambda: (_forget_persisted_user_in_browser(), st.session_state.update(user=None), rerun()))
 
 if st.session_state.get("allow_cookie_fallback"):
     st.caption("Cookie fallback: you'll stay signed in until you close this tab.")
+
 
 # ------------------------- Session Init -------------------------
 
@@ -251,15 +256,17 @@ def init_session():
         if k not in st.session_state:
             st.session_state[k] = v
 
+
 init_session()
+
 
 # ------------------------- Persistence -------------------------
 
 def save_data():
     uid = st.session_state.user['localId']
     data = {k: st.session_state[k] for k in [
-        "baseline","last_mileage","total_miles","total_cost","total_gallons",
-        "last_trip_summary","log","expenses","earnings"
+        "baseline", "last_mileage", "total_miles", "total_cost", "total_gallons",
+        "last_trip_summary", "log", "expenses", "earnings"
     ]}
     db.child("users").child(uid).set(data, st.session_state.user['idToken'])
 
@@ -273,6 +280,7 @@ def load_data():
                 st.session_state[k] = v
     except Exception:
         pass
+
 
 if "initialized" not in st.session_state:
     st.session_state.initialized = True
@@ -359,9 +367,11 @@ st.markdown(
 if "nav_page_sel" not in st.session_state:
     st.session_state.nav_page_sel = st.session_state.page if st.session_state.page in NAV_KEYS else NAV_KEYS[0]
 
+
 def _on_nav_change():
     st.session_state.page = st.session_state.nav_page_sel
     rerun()
+
 
 st.radio(
     label="",
@@ -405,12 +415,14 @@ if page == "mileage":
     with c3:
         fuel_cost_str = st.text_input("Fuel $", placeholder="85.00", key="fuel_cost")
 
+
     # Parse helpers (accepts comma or dot decimals)
     def _to_float(s: str):
         try:
             return float((s or "").replace(",", ".").strip())
         except Exception:
             return None
+
 
     new_mileage = _to_float(odometer_str)
     gallons = _to_float(gallons_str)
@@ -537,7 +549,7 @@ if page == "mileage":
 elif page == "expenses":
     st.subheader("💸 Expenses")
 
-    options = ["Fuel","Repair","Certificates","Insurance","Trailer Rent","IFTA","Reefer Fuel","Other"]
+    options = ["Fuel", "Repair", "Certificates", "Insurance", "Trailer Rent", "IFTA", "Reefer Fuel", "Other"]
     today = datetime.now().strftime("%Y-%m-%d")
 
     if st.session_state.edit_expense_index is None:
@@ -552,7 +564,7 @@ elif page == "expenses":
                 st.session_state.expenses.append(exp)
                 st.session_state.log.append({
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "type": "Expense","amount": amount, "note": f"{expense_type}: {description}"
+                    "type": "Expense", "amount": amount, "note": f"{expense_type}: {description}"
                 })
                 st.session_state.pending_changes = True
                 rerun()
@@ -567,7 +579,8 @@ elif page == "expenses":
         c1, c2 = st.columns(2, gap="small")
         with c1:
             if st.button("💾 Save", use_container_width=True):
-                st.session_state.expenses[idx] = {"date": exp["date"], "type": new_type, "description": new_desc, "amount": new_amt}
+                st.session_state.expenses[idx] = {"date": exp["date"], "type": new_type, "description": new_desc,
+                                                  "amount": new_amt}
                 st.session_state.edit_expense_index = None
                 st.session_state.pending_changes = True
                 rerun()
@@ -596,7 +609,7 @@ elif page == "expenses":
     else:
         st.info("No expenses yet.")
 
-    total_expense_amount = sum(e.get("amount",0.0) for e in st.session_state.expenses)
+    total_expense_amount = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
     st.markdown(f"**Total:** ${total_expense_amount:.2f}")
 
 # ------------------------- PAGE: Earnings -------------------------
@@ -629,14 +642,15 @@ elif page == "earnings":
         st.dataframe(df, use_container_width=True)
 
         chart = alt.Chart(df).mark_line(point=True).encode(
-            x="date:T", y=alt.Y("net_owner:Q", title="Owner Net"), tooltip=["date","net_owner"]
+            x="date:T", y=alt.Y("net_owner:Q", title="Owner Net"), tooltip=["date", "net_owner"]
         ).properties(title="Owner Net Over Time", height=160)
         st.altair_chart(chart, use_container_width=True)
 
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", csv, "income.csv", "text/csv", use_container_width=True)
 
-        st.caption(f"Totals — Worker: ${df['worker'].sum():.2f} | Owner: ${df['owner'].sum():.2f} | Net: ${df['net_owner'].sum():.2f}")
+        st.caption(
+            f"Totals — Worker: ${df['worker'].sum():.2f} | Owner: ${df['owner'].sum():.2f} | Net: ${df['net_owner'].sum():.2f}")
     else:
         st.info("No income yet.")
 
@@ -650,7 +664,8 @@ elif page == "log":
                     f"🕒 {entry['timestamp']} — 🚛 Trip: {entry['distance']:.2f} mi, {entry['mpg']:.2f} MPG, ${entry['total_cost']:.2f}, ${entry['cost_per_mile']:.2f}/mi"
                 )
             else:
-                st.write(f"🕒 {entry['timestamp']} — {entry.get('type')}: ${entry.get('amount',0.0):.2f} ({entry.get('note','')})")
+                st.write(
+                    f"🕒 {entry['timestamp']} — {entry.get('type')}: ${entry.get('amount', 0.0):.2f} ({entry.get('note', '')})")
     else:
         st.info("Empty log.")
 
@@ -690,12 +705,14 @@ elif page == "settings":
     st.divider()
     st.markdown("### 📁 Backup & Restore")
 
+
     def _export_data_bytes():
         data = {k: st.session_state[k] for k in [
-            "baseline","last_mileage","total_miles","total_cost","total_gallons",
-            "last_trip_summary","log","expenses","earnings"
+            "baseline", "last_mileage", "total_miles", "total_cost", "total_gallons",
+            "last_trip_summary", "log", "expenses", "earnings"
         ]}
         return json.dumps(data, indent=2).encode("utf-8")
+
 
     st.download_button(
         label="📥 Download JSON",
@@ -721,6 +738,7 @@ elif page == "settings":
     st.divider()
     st.markdown("### 📄 Quick Report")
 
+
     def _build_quick_report() -> str:
         lines = []
         lines.append("Balls Logistics Report")
@@ -737,14 +755,16 @@ elif page == "settings":
         lines.append("")
         lines.append("Earnings:")
         for e in st.session_state.earnings:
-            lines.append(f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}")
+            lines.append(
+                f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}")
         return "
 ".join(lines)
 
-    if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
-        txt = _build_quick_report()
-        st.text_area("Report", txt, height=260, key="report_txt_settings")
-        st.download_button("💾 Download .txt", txt, file_name="balls_logistics_report.txt", use_container_width=True, key="dl_report_settings")
+if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
+    txt = _build_quick_report()
+    st.text_area("Report", txt, height=260, key="report_txt_settings")
+    st.download_button("💾 Download .txt", txt, file_name="balls_logistics_report.txt", use_container_width=True,
+                       key="dl_report_settings")
 
 # ------------------------- Statistics (bottom compact block) -------------------------
 st.markdown("---")
@@ -753,8 +773,10 @@ if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
     avg_mpg = st.session_state.total_miles / st.session_state.total_gallons
     avg_cpm = st.session_state.total_cost / st.session_state.total_miles if st.session_state.total_miles else 0
     c1, c2 = st.columns(2, gap="small")
-    with c1: st.metric("Avg MPG", f"{avg_mpg:.2f}")
-    with c2: st.metric("Avg $/mi", f"${avg_cpm:.2f}")
+    with c1:
+        st.metric("Avg MPG", f"{avg_mpg:.2f}")
+    with c2:
+        st.metric("Avg $/mi", f"${avg_cpm:.2f}")
 
     mpg_data = [
         {"Date": e["timestamp"], "MPG": e["mpg"]}
@@ -763,7 +785,8 @@ if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
     if mpg_data:
         mpg_df = pd.DataFrame(mpg_data)
         st.altair_chart(
-            alt.Chart(mpg_df).mark_line(point=True).encode(x="Date:T", y="MPG:Q").properties(title="MPG per Trip", height=160),
+            alt.Chart(mpg_df).mark_line(point=True).encode(x="Date:T", y="MPG:Q").properties(title="MPG per Trip",
+                                                                                             height=160),
             use_container_width=True,
         )
 
@@ -771,7 +794,8 @@ if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
         df_exp = pd.DataFrame(st.session_state.expenses)
         df_exp = df_exp.groupby("type")["amount"].sum().reset_index()
         st.altair_chart(
-            alt.Chart(df_exp).mark_arc().encode(theta="amount", color="type", tooltip=["type","amount"]).properties(title="Expenses by Category", height=180),
+            alt.Chart(df_exp).mark_arc().encode(theta="amount", color="type", tooltip=["type", "amount"]).properties(
+                title="Expenses by Category", height=180),
             use_container_width=True,
         )
 else:
