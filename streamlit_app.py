@@ -290,20 +290,36 @@ total_exp = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
 total_earn = sum(e.get("owner", 0.0) for e in st.session_state.earnings)
 net_income = total_earn - total_exp
 
-# 2×2 grid (two rows, two columns)
-r1c1, r1c2 = st.columns(2, gap="small")
+# Force 2×2 metrics on iPhone using CSS grid override
+st.markdown("""
+    <style>
+      .dash-2x2 [data-testid="stHorizontalBlock"]{
+        display:grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap:.5rem !important;
+      }
+      .dash-2x2 [data-testid="stHorizontalBlock"] > div{
+        width:auto !important; flex:none !important;
+      }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="dash-2x2">', unsafe_allow_html=True)
+# Row 1
+r1c1, r1c2 = st.columns(2)
 with r1c1:
     st.metric("Total Miles", f"{st.session_state.total_miles:.2f} mi")
 with r1c2:
     st.metric("Fuel Used", f"{st.session_state.total_gallons:.2f} gal")
-
-r2c1, r2c2 = st.columns(2, gap="small")
+# Row 2
+r2c1, r2c2 = st.columns(2)
 with r2c1:
     st.metric("Fuel Cost", f"${st.session_state.total_cost:.2f}")
 with r2c2:
     st.metric("Owner Earnings", f"${total_earn:.2f}")
 
 st.caption(f"Net (Owner − Expenses): ${net_income:.2f}")
+st.markdown('</div>', unsafe_allow_html=True)
 
 with st.expander("📁 Backup & Restore", expanded=False):
     def export_data():
@@ -342,50 +358,30 @@ NAV = [
     ("settings", "⚙️ Settings"),
 ]
 
-# 3×2 grid of page buttons (3 columns × 2 rows) with active highlight
-st.markdown('<div class="nav-grid">', unsafe_allow_html=True)
-rows = [NAV[i:i+3] for i in range(0, len(NAV), 3)]
-for row in rows:
-    cols = st.columns(3, gap="small")
-    for (k, label), col in zip(row, cols):
-        with col:
-            active = (st.session_state.page == k)
-            if st.button(label, key=f"nav_{k}", use_container_width=True, disabled=active):
-                st.session_state.page = k
-st.markdown('</div>', unsafe_allow_html=True)
-
-# Active (disabled) nav button styling
+# 3×2 grid of page buttons (3 columns × 2 rows) — flex layout that does NOT stack on iPhone
 st.markdown("""
     <style>
-      .nav-grid .stButton button:disabled {
-        background: #2563eb !important;
-        color: #ffffff !important;
-        border-color: #2563eb !important;
-        opacity: 1 !important;
-      }
-      .nav-grid .stButton button:disabled:focus {
-        outline: none;
-        box-shadow: 0 0 0 3px rgba(37,99,235,.35) !important;
-      }
-      /* Idle nav buttons */
-      .nav-grid .stButton button:not(:disabled) {
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
-      }
-      @media (prefers-color-scheme: dark) {
-        .nav-grid .stButton button:not(:disabled) {
-          background: #111827;
-          border-color: #374151;
-          color: #e5e7eb;
-        }
-        .nav-grid .stButton button:disabled {
-          background: #3b82f6 !important;
-          border-color: #3b82f6 !important;
-          color: #fff !important;
-        }
+      .nav-grid{ display:flex; flex-wrap:wrap; gap:.35rem; }
+      .nav-grid .stButton{ flex:0 0 calc(33.333% - .35rem); margin:0; }
+      .nav-grid .stButton button{ width:100%; }
+      /* Active (disabled) button styling */
+      .nav-grid .stButton button:disabled { background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; opacity:1 !important; }
+      .nav-grid .stButton button:disabled:focus { outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.35) !important; }
+      /* Idle buttons */
+      .nav-grid .stButton button:not(:disabled){ background:#fff; border:1px solid #e5e7eb; }
+      @media (prefers-color-scheme: dark){
+        .nav-grid .stButton button:not(:disabled){ background:#111827; border-color:#374151; color:#e5e7eb; }
+        .nav-grid .stButton button:disabled{ background:#3b82f6 !important; border-color:#3b82f6 !important; color:#fff !important; }
       }
     </style>
 """, unsafe_allow_html=True)
+
+st.markdown('<div class="nav-grid">', unsafe_allow_html=True)
+for k, label in NAV:
+    active = (st.session_state.page == k)
+    if st.button(label, key=f"nav_{k}", use_container_width=True, disabled=active):
+        st.session_state.page = k
+st.markdown('</div>', unsafe_allow_html=True)
 
 page = st.session_state.page
 st.title("🚛 Balls Logistics")
