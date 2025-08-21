@@ -63,11 +63,6 @@ st.markdown(
         .stTextInput input, .stNumberInput input { height: 34px; font-size:.9rem; }
       }
     </style>
-        .block-container { max-width: 520px; padding:.5rem .5rem 2rem; }
-        .stButton button, .stDownloadButton button { padding:.4rem .55rem; font-size:.88rem; }
-        .stTextInput input, .stNumberInput input { height: 34px; font-size:.9rem; }
-      }
-    </style>
     """,
     unsafe_allow_html=True,
 )
@@ -241,14 +236,27 @@ if st.session_state.user is None:
 st.success(f"Logged in: {st.session_state.user.get('email')}")
 
 # Quick logout button (mobile top)
-st.button("🚪 Logout", key="logout_main", use_container_width=True,
-          on_click=lambda: (_forget_persisted_user_in_browser(), st.session_state.update(user=None), rerun()))
+def _logout():
+    try:
+        _forget_persisted_user_in_browser()
+    except Exception:
+        pass
+    # Streamlit callbacks auto-rerun; no need to call rerun()
+    st.session_state.user = None
+
+st.button(
+    "🚪 Logout",
+    key="logout_main",
+    use_container_width=True,
+    on_click=_logout,
+)
+
 
 if st.session_state.get("allow_cookie_fallback"):
     st.caption("Cookie fallback: you'll stay signed in until you close this tab.")
 
+    # ------------------------- Session Init -------------------------
 
-# ------------------------- Session Init -------------------------
 
 def init_session():
     defaults = {
@@ -383,7 +391,6 @@ if "nav_page_sel" not in st.session_state:
 
 def _on_nav_change():
     st.session_state.page = st.session_state.nav_page_sel
-    rerun()
 
 
 st.radio(
@@ -771,6 +778,7 @@ elif page == "settings":
             lines.append(
                 f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}")
         return "\n".join(lines)
+
 
 if page == "settings":
     if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
