@@ -285,20 +285,26 @@ if st.session_state.get("pending_changes"):
 # ------------------------- Dashboard (compact) -------------------------
 st.markdown("### 🌐 Dashboard")
 
-c1, c2 = st.columns(2, gap="small")
-with c1:
+# Compute totals once
+total_exp = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
+total_earn = sum(e.get("owner", 0.0) for e in st.session_state.earnings)
+net_income = total_earn - total_exp
+
+# 2×2 grid (two rows, two columns)
+r1c1, r1c2 = st.columns(2, gap="small")
+with r1c1:
     st.metric("Total Miles", f"{st.session_state.total_miles:.2f} mi")
+with r1c2:
     st.metric("Fuel Used", f"{st.session_state.total_gallons:.2f} gal")
-with c2:
+
+r2c1, r2c2 = st.columns(2, gap="small")
+with r2c1:
     st.metric("Fuel Cost", f"${st.session_state.total_cost:.2f}")
-    total_exp = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
-    total_earn = sum(e.get("owner", 0.0) for e in st.session_state.earnings)
+with r2c2:
     st.metric("Owner Earnings", f"${total_earn:.2f}")
 
-net_income = total_earn - total_exp
 st.caption(f"Net (Owner − Expenses): ${net_income:.2f}")
 
-# ------------------------- Export/Import -------------------------
 with st.expander("📁 Backup & Restore", expanded=False):
     def export_data():
         data = {k: st.session_state[k] for k in [
@@ -336,24 +342,50 @@ NAV = [
     ("settings", "⚙️ Settings"),
 ]
 
-# Segmented control if available; else chips
-if hasattr(st, "segmented_control"):
-    sel = st.segmented_control(
-        "",
-        options=[k for k, _ in NAV],
-        default=st.session_state.page,
-        format_func=lambda k: dict(NAV)[k],
-        key="nav_sc",
-    )
-    st.session_state.page = sel
-else:
-    st.markdown('<div class="nav-bar">', unsafe_allow_html=True)
-    for k, label in NAV:
-        active = "active" if st.session_state.page == k else ""
-        if st.button(label, key=f"nav_{k}"):
-            st.session_state.page = k
-        st.write(" ", unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+# 3×2 grid of page buttons (3 columns × 2 rows) with active highlight
+st.markdown('<div class="nav-grid">', unsafe_allow_html=True)
+rows = [NAV[i:i+3] for i in range(0, len(NAV), 3)]
+for row in rows:
+    cols = st.columns(3, gap="small")
+    for (k, label), col in zip(row, cols):
+        with col:
+            active = (st.session_state.page == k)
+            if st.button(label, key=f"nav_{k}", use_container_width=True, disabled=active):
+                st.session_state.page = k
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Active (disabled) nav button styling
+st.markdown("""
+    <style>
+      .nav-grid .stButton button:disabled {
+        background: #2563eb !important;
+        color: #ffffff !important;
+        border-color: #2563eb !important;
+        opacity: 1 !important;
+      }
+      .nav-grid .stButton button:disabled:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(37,99,235,.35) !important;
+      }
+      /* Idle nav buttons */
+      .nav-grid .stButton button:not(:disabled) {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        .nav-grid .stButton button:not(:disabled) {
+          background: #111827;
+          border-color: #374151;
+          color: #e5e7eb;
+        }
+        .nav-grid .stButton button:disabled {
+          background: #3b82f6 !important;
+          border-color: #3b82f6 !important;
+          color: #fff !important;
+        }
+      }
+    </style>
+""", unsafe_allow_html=True)
 
 page = st.session_state.page
 st.title("🚛 Balls Logistics")
