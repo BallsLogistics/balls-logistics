@@ -351,53 +351,58 @@ NAV = [
     ("settings", "⚙️ Settings"),
 ]
 
-# Pure Streamlit 3×2 grid (no anchors, no URL changes, no page reload)
+def go(p: str):
+    st.session_state.page = p
+    rerun()
+
+# Force 3 columns on iPhone using CSS grid override for Streamlit columns
 st.markdown(
-    """
+    '''
     <style>
-      /* Highlight the active (disabled) nav button */
-      .nav-grid [data-testid="stButton"] button:disabled {
+      .nav-3x2 [data-testid="stHorizontalBlock"]{
+        display:grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap:.35rem !important;
+      }
+      .nav-3x2 [data-testid="stHorizontalBlock"] > div{
+        width:auto !important; flex:none !important;
+      }
+      .nav-3x2 [data-testid="stButton"] button:disabled {
         background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; opacity:1 !important;
       }
-      .nav-grid [data-testid="stButton"] button:not(:disabled){ background:#fff; border:1px solid #e5e7eb; }
+      .nav-3x2 [data-testid="stButton"] button:not(:disabled){ background:#fff; border:1px solid #e5e7eb; }
       @media (prefers-color-scheme: dark){
-        .nav-grid [data-testid="stButton"] button:not(:disabled){ background:#111827; border-color:#374151; color:#e5e7eb; }
-        .nav-grid [data-testid="stButton"] button:disabled{ background:#3b82f6 !important; border-color:#3b82f6 !important; color:#fff !important; }
+        .nav-3x2 [data-testid="stButton"] button:not(:disabled){ background:#111827; border-color:#374151; color:#e5e7eb; }
+        .nav-3x2 [data-testid="stButton"] button:disabled{ background:#3b82f6 !important; border-color:#3b82f6 !important; color:#fff !important; }
       }
     </style>
-    """,
+    ''',
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="nav-grid">', unsafe_allow_html=True)
+st.markdown('<div class="nav-3x2">', unsafe_allow_html=True)
 # Row 1
 c1, c2, c3 = st.columns(3, gap="small")
 with c1:
     st.button("⛽ Fuel", key="nav_mileage", use_container_width=True,
-              disabled=(st.session_state.page=="mileage"),
-              on_click=lambda: st.session_state.update(page="mileage"))
+              disabled=(st.session_state.page=="mileage"), on_click=lambda: go("mileage"))
 with c2:
     st.button("💸 Expenses", key="nav_expenses", use_container_width=True,
-              disabled=(st.session_state.page=="expenses"),
-              on_click=lambda: st.session_state.update(page="expenses"))
+              disabled=(st.session_state.page=="expenses"), on_click=lambda: go("expenses"))
 with c3:
     st.button("💰 Income", key="nav_earnings", use_container_width=True,
-              disabled=(st.session_state.page=="earnings"),
-              on_click=lambda: st.session_state.update(page="earnings"))
+              disabled=(st.session_state.page=="earnings"), on_click=lambda: go("earnings"))
 # Row 2
 c4, c5, c6 = st.columns(3, gap="small")
 with c4:
     st.button("📜 Log", key="nav_log", use_container_width=True,
-              disabled=(st.session_state.page=="log"),
-              on_click=lambda: st.session_state.update(page="log"))
+              disabled=(st.session_state.page=="log"), on_click=lambda: go("log"))
 with c5:
     st.button("📁 Files", key="nav_upload", use_container_width=True,
-              disabled=(st.session_state.page=="upload"),
-              on_click=lambda: st.session_state.update(page="upload"))
+              disabled=(st.session_state.page=="upload"), on_click=lambda: go("upload"))
 with c6:
     st.button("⚙️ Settings", key="nav_settings", use_container_width=True,
-              disabled=(st.session_state.page=="settings"),
-              on_click=lambda: st.session_state.update(page="settings"))
+              disabled=(st.session_state.page=="settings"), on_click=lambda: go("settings"))
 
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -424,121 +429,120 @@ if page == "mileage":
 
     st.markdown("**Enter Trip Data**")
 
-c1, c2, c3 = st.columns(3, gap="small")
-with c1:
-    odometer_str = st.text_input("Odometer", placeholder="150350", key="mileage")
-with c2:
-    gallons_str = st.text_input("Gallons", placeholder="20.5", key="gallons")
-with c3:
-    fuel_cost_str = st.text_input("Fuel $", placeholder="85.00", key="fuel_cost")
+    c1, c2, c3 = st.columns(3, gap="small")
+    with c1:
+        odometer_str = st.text_input("Odometer", placeholder="150350", key="mileage")
+    with c2:
+        gallons_str = st.text_input("Gallons", placeholder="20.5", key="gallons")
+    with c3:
+        fuel_cost_str = st.text_input("Fuel $", placeholder="85.00", key="fuel_cost")
 
-# Parse helpers (accepts comma or dot decimals)
-def _to_float(s: str):
-    try:
-        return float((s or "").replace(",", ".").strip())
-    except Exception:
-        return None
-
-new_mileage = _to_float(odometer_str)
-gallons = _to_float(gallons_str)
-fuel_cost = _to_float(fuel_cost_str)
-
-# Hint iOS to show numeric keypad
-st.markdown(
-    """
-    <script>
-      const hints = ["150350","20.5","85.00"]; // placeholders we used
-      for (const ph of hints) {
-        document.querySelectorAll(`input[placeholder="${ph}"]`).forEach(el => {
-          el.setAttribute('inputmode','decimal');
-          el.setAttribute('pattern','[0-9]*');
-        });
-      }
-    </script>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Support FAB via query param
-_action = st.query_params.get("action")
-if isinstance(_action, (list, tuple)):
-    _action = _action[0] if _action else None
-
-# Validate
-is_valid = True
-if new_mileage is None or gallons is None or fuel_cost is None:
-    is_valid = False
-elif st.session_state.baseline is None or st.session_state.last_mileage is None:
-    is_valid = False
-elif new_mileage <= (st.session_state.last_mileage or 0):
-    st.warning("Odometer must increase.")
-    is_valid = False
-
-confirm_click = st.button("✅ Confirm Trip", disabled=not is_valid, use_container_width=True)
-confirm_request = (_action == "confirm_trip")
-if confirm_request and not is_valid:
-    st.warning("Fill all fields before using the FAB.")
-
-if (confirm_click or (confirm_request and is_valid)):
-    if st.session_state.last_mileage is not None:
+    # Parse helpers (accepts comma or dot decimals)
+    def _to_float(s: str):
         try:
-            distance = new_mileage - st.session_state.last_mileage
-            if distance <= 0:
-                st.error("Trip distance is zero. Enter a higher odometer value.")
-            else:
-                mpg = distance / gallons if gallons and gallons > 0 else 0
-                cost_per_mile = fuel_cost / distance if distance > 0 else 0
+            return float((s or "").replace(",", ".").strip())
+        except Exception:
+            return None
 
-                st.session_state.total_miles += distance
-                st.session_state.total_cost += (fuel_cost or 0)
-                st.session_state.total_gallons += (gallons or 0)
-                st.session_state.last_mileage = new_mileage
+    new_mileage = _to_float(odometer_str)
+    gallons = _to_float(gallons_str)
+    fuel_cost = _to_float(fuel_cost_str)
 
-                log_entry = {
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "type": "Trip",
-                    "distance": distance,
-                    "gallons": gallons or 0,
-                    "mpg": mpg,
-                    "total_cost": fuel_cost or 0,
-                    "cost_per_mile": cost_per_mile,
-                    "note": "Mileage + Fuel",
-                }
-                st.session_state.log.append(log_entry)
-                st.session_state.last_trip_summary = log_entry
-                st.session_state.pending_changes = True
-                # If invoked via FAB, clean up the action param to avoid double-submit on refresh
-                if confirm_request:
-                    st.markdown(
-                        """
-                        <script>
-                          const url = new URL(window.location.href);
-                          url.searchParams.delete('action');
-                          window.history.replaceState({}, '', url);
-                        </script>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                rerun()
-        except ZeroDivisionError:
-            st.error("Gallons must be greater than zero.")
-    else:
-        st.error("Set baseline first.")
+    # Hint iOS to show numeric keypad
+    st.markdown(
+        """
+        <script>
+          const hints = ["150350","20.5","85.00"]; // placeholders we used
+          for (const ph of hints) {
+            document.querySelectorAll(`input[placeholder="${ph}"]`).forEach(el => {
+              el.setAttribute('inputmode','decimal');
+              el.setAttribute('pattern','[0-9]*');
+            });
+          }
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
 
-# Floating Action Button (FAB) for quick confirm
-st.markdown(
-    """
-    <a class=\"fab-add\" href=\"?page=mileage&action=confirm_trip\">➕</a>
-    <style>
-      .fab-add { position:fixed; right: calc(env(safe-area-inset-right) + 1rem); bottom: calc(env(safe-area-inset-bottom) + 4.8rem); width:56px; height:56px; border-radius:9999px; display:flex; align-items:center; justify-content:center; background:#10b981; color:#fff; text-decoration:none; font-size:1.4rem; box-shadow: 0 6px 16px rgba(0,0,0,.25); z-index:10050; }
-      .fab-add:active { transform: translateY(1px); }
-      @media (prefers-color-scheme: dark){ .fab-add { background:#22c55e; } }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+    # Support FAB via query param
+    _action = st.query_params.get("action")
+    if isinstance(_action, (list, tuple)):
+        _action = _action[0] if _action else None
 
-if st.session_state.last_trip_summary:
+    # Validate
+    is_valid = True
+    if new_mileage is None or gallons is None or fuel_cost is None:
+        is_valid = False
+    elif st.session_state.baseline is None or st.session_state.last_mileage is None:
+        is_valid = False
+    elif new_mileage <= (st.session_state.last_mileage or 0):
+        st.warning("Odometer must increase.")
+        is_valid = False
+
+    confirm_click = st.button("✅ Confirm Trip", disabled=not is_valid, use_container_width=True)
+    confirm_request = (_action == "confirm_trip")
+    if confirm_request and not is_valid:
+        st.warning("Fill all fields before using the FAB.")
+
+    if (confirm_click or (confirm_request and is_valid)):
+        if st.session_state.last_mileage is not None:
+            try:
+                distance = new_mileage - st.session_state.last_mileage
+                if distance <= 0:
+                    st.error("Trip distance is zero. Enter a higher odometer value.")
+                else:
+                    mpg = distance / gallons if gallons and gallons > 0 else 0
+                    cost_per_mile = fuel_cost / distance if distance > 0 else 0
+
+                    st.session_state.total_miles += distance
+                    st.session_state.total_cost += (fuel_cost or 0)
+                    st.session_state.total_gallons += (gallons or 0)
+                    st.session_state.last_mileage = new_mileage
+
+                    log_entry = {
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "type": "Trip",
+                        "distance": distance,
+                        "gallons": gallons or 0,
+                        "mpg": mpg,
+                        "total_cost": fuel_cost or 0,
+                        "cost_per_mile": cost_per_mile,
+                        "note": "Mileage + Fuel",
+                    }
+                    st.session_state.log.append(log_entry)
+                    st.session_state.last_trip_summary = log_entry
+                    st.session_state.pending_changes = True
+                    if confirm_request:
+                        st.markdown(
+                            """
+                            <script>
+                              const url = new URL(window.location.href);
+                              url.searchParams.delete('action');
+                              window.history.replaceState({}, '', url);
+                            </script>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                    rerun()
+            except ZeroDivisionError:
+                st.error("Gallons must be greater than zero.")
+        else:
+            st.error("Set baseline first.")
+
+    # Floating Action Button (FAB) for quick confirm
+    st.markdown(
+        """
+        <a class=\"fab-add\" href=\"?page=mileage&action=confirm_trip\">➕</a>
+        <style>
+          .fab-add { position:fixed; right: calc(env(safe-area-inset-right) + 1rem); bottom: calc(env(safe-area-inset-bottom) + 4.8rem); width:56px; height:56px; border-radius:9999px; display:flex; align-items:center; justify-content:center; background:#10b981; color:#fff; text-decoration:none; font-size:1.4rem; box-shadow: 0 6px 16px rgba(0,0,0,.25); z-index:10050; }
+          .fab-add:active { transform: translateY(1px); }
+          @media (prefers-color-scheme: dark){ .fab-add { background:#22c55e; } }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.session_state.last_trip_summary:
         e = st.session_state.last_trip_summary
         st.markdown("**🧶 Last Trip**")
         c1, c2 = st.columns(2, gap="small")
