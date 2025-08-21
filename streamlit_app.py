@@ -351,30 +351,40 @@ NAV = [
     ("settings", "⚙️ Settings"),
 ]
 
-# 3×2 grid of page buttons (3 columns × 2 rows) — column-based (robust on iPhone)
+# 3×2 grid of page buttons (3 columns × 2 rows) — enforced via CSS grid to prevent stacking on iPhone
 st.markdown("""
 <style>
-  .nav-3x2 .stButton button:disabled {
-    background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; opacity:1 !important;
+  /* Force Streamlit's horizontal blocks (created by st.columns) into a 3-col grid */
+  .nav-fixed3 [data-testid="stHorizontalBlock"]{
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: .35rem !important;
   }
-  .nav-3x2 .stButton button:disabled:focus { outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.35) !important; }
-  .nav-3x2 .stButton button:not(:disabled){ background:#fff; border:1px solid #e5e7eb; }
+  .nav-fixed3 [data-testid="stHorizontalBlock"] > div{
+    width: auto !important; /* cancel Streamlit flex width */
+    flex: none !important;
+  }
+  /* Active (disabled) styling */
+  .nav-fixed3 .stButton button:disabled { background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; opacity:1 !important; }
+  .nav-fixed3 .stButton button:disabled:focus { outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.35) !important; }
+  /* Idle */
+  .nav-fixed3 .stButton button:not(:disabled){ background:#fff; border:1px solid #e5e7eb; }
   @media (prefers-color-scheme: dark){
-    .nav-3x2 .stButton button:not(:disabled){ background:#111827; border-color:#374151; color:#e5e7eb; }
-    .nav-3x2 .stButton button:disabled{ background:#3b82f6 !important; border-color:#3b82f6 !important; color:#fff !important; }
+    .nav-fixed3 .stButton button:not(:disabled){ background:#111827; border-color:#374151; color:#e5e7eb; }
+    .nav-fixed3 .stButton button:disabled{ background:#3b82f6 !important; border-color:#3b82f6 !important; color:#fff !important; }
   }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="nav-3x2">', unsafe_allow_html=True)
-# Row 1
+st.markdown('<div class="nav-fixed3">', unsafe_allow_html=True)
+# Row 1 (3 buttons)
 c1, c2, c3 = st.columns(3, gap="small")
 for (k, label), col in zip(NAV[0:3], (c1, c2, c3)):
     with col:
         active = (st.session_state.page == k)
         if st.button(label, key=f"nav_{k}", use_container_width=True, disabled=active):
             st.session_state.page = k
-# Row 2
+# Row 2 (3 buttons)
 c4, c5, c6 = st.columns(3, gap="small")
 for (k, label), col in zip(NAV[3:6], (c4, c5, c6)):
     with col:
