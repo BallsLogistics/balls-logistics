@@ -73,7 +73,8 @@ st.markdown(
     <style>
       .account-row { display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin:.25rem 0 .35rem 0; }
       .account-row .email { font-size:.95rem; font-weight:500; overflow-wrap:anywhere; }
-      .account-row .stButton>button { height:36px !important; padding:.35rem .6rem !important; border-radius:10px !important; }
+      .account-row .logout-link { display:inline-flex; align-items:center; padding:.35rem .6rem; border:1px solid #e5e7eb; border-radius:10px; text-decoration:none; }
+      @media (prefers-color-scheme: dark){ .account-row .logout-link { border-color:#374151; color:#e5e7eb; } }
     </style>
     """,
     unsafe_allow_html=True,
@@ -249,14 +250,7 @@ if st.session_state.user is None:
 # Account bar: "Logged in: email" (no parentheses) + wide Logout button
 
 def render_account_bar(email: str | None):
-    st.markdown('<div class="account-row">', unsafe_allow_html=True)
-    left, right = st.columns([0.72, 0.28], gap="small")
-    with left:
-        st.markdown(f'<div class="email">Logged in: {email or "—"}</div>', unsafe_allow_html=True)
-    with right:
-        if st.button("Logout", key="logout_btn", use_container_width=True):
-            _force_logout()
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div><a class="logout-link" href="?logout=1">Logout</a></div>''', unsafe_allow_html=True)
 
 render_account_bar(st.session_state.user.get('email'))
 
@@ -339,6 +333,7 @@ NAV_LABELS = {k: v for k, v in NAV}
 st.markdown(
     '''
     <style>
+      [data-testid="stRadio"] > label{ display:none !important; }
       [data-testid="stRadio"] [role="radiogroup"]{
         display:grid !important;
         grid-template-columns: repeat(3, 1fr) !important;
