@@ -242,11 +242,26 @@ def _logout():
         pass
     st.session_state.user = None  # reruns automatically
 
-row_l, row_r = st.columns([0.7, 0.3], gap="small")
-with row_l:
-    st.markdown(f"Logged in: ({st.session_state.user.get('email')})")
-with row_r:
-    st.button("🚪 Logout", key="logout_main", use_container_width=True, on_click=_logout)
+st.markdown(
+    f"""
+    <div class="topbar">
+      <span><strong>Logged in:</strong> ({st.session_state.user.get('email')})</span>
+      <a class="logout-btn" href="?logout=1">🚪 Logout</a>
+    </div>
+    <style>
+      .topbar {{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; }}
+      .logout-btn {{
+        display:inline-flex; align-items:center; gap:.35rem;
+        padding:.35rem .6rem; border:1px solid #e5e7eb; border-radius:.5rem; text-decoration:none;
+      }}
+      @media (prefers-color-scheme: dark) {{
+        .logout-btn {{ border-color:#374151; color:#e5e7eb; }}
+      }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 if st.session_state.get("allow_cookie_fallback"):
     st.caption("Cookie fallback: you'll stay signed in until you close this tab.")
