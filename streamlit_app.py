@@ -11,7 +11,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 
 # ------------------------- Page & Global Styles -------------------------
 st.set_page_config(
-    page_title="🚛 Balls Logistics",
+    page_title="🚛 Real Balls Logistics Management",
     page_icon="🚛",
     layout="wide",  # use full width; we'll constrain with CSS
     initial_sidebar_state="collapsed",
@@ -62,6 +62,18 @@ st.markdown(
         .stButton button, .stDownloadButton button { padding:.4rem .55rem; font-size:.88rem; }
         .stTextInput input, .stNumberInput input { height: 34px; font-size:.9rem; }
       }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# --- Account bar styles (email without parentheses + wide Logout) ---
+st.markdown(
+    """
+    <style>
+      .account-row { display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin:.25rem 0 .35rem 0; }
+      .account-row .email { font-size:.95rem; font-weight:500; overflow-wrap:anywhere; }
+      .account-row .stButton>button { height:36px !important; padding:.35rem .6rem !important; border-radius:10px !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -169,7 +181,7 @@ if st.session_state.user is None:
 
 # Login / Register / Reset (compact)
 if st.session_state.user is None:
-    st.title("🔐 Login to Balls Logistics")
+    st.title("🔐 Login to Real Balls Logistics Management")
 
     mode = (
         st.segmented_control("", options=["Login", "Register", "Reset"], default="Login", key="auth_mode")
@@ -178,6 +190,7 @@ if st.session_state.user is None:
     )
 
     if mode == "Login":
+
         with st.form("login_form", border=False):
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
@@ -233,35 +246,19 @@ if st.session_state.user is None:
     st.stop()
 
 # ------------------------- Authenticated -------------------------
-# One-line header: "Logged in:(email)" + Logout
+# Account bar: "Logged in: email" (no parentheses) + wide Logout button
 
-def _logout():
-    try:
-        _forget_persisted_user_in_browser()
-    except Exception:
-        pass
-    st.session_state.user = None  # reruns automatically
+def render_account_bar(email: str | None):
+    st.markdown('<div class="account-row">', unsafe_allow_html=True)
+    left, right = st.columns([0.72, 0.28], gap="small")
+    with left:
+        st.markdown(f'<div class="email">Logged in: {email or "—"}</div>', unsafe_allow_html=True)
+    with right:
+        if st.button("Logout", key="logout_btn", use_container_width=True):
+            _force_logout()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown(
-    f"""
-    <div class="topbar">
-      <span><strong>Logged in:</strong> ({st.session_state.user.get('email')})</span>
-      <a class="logout-btn" href="?logout=1">🚪 Logout</a>
-    </div>
-    <style>
-      .topbar {{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; }}
-      .logout-btn {{
-        display:inline-flex; align-items:center; gap:.35rem;
-        padding:.35rem .6rem; border:1px solid #e5e7eb; border-radius:.5rem; text-decoration:none;
-      }}
-      @media (prefers-color-scheme: dark) {{
-        .logout-btn {{ border-color:#374151; color:#e5e7eb; }}
-      }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
+render_account_bar(st.session_state.user.get('email'))
 
 if st.session_state.get("allow_cookie_fallback"):
     st.caption("Cookie fallback: you'll stay signed in until you close this tab.")
@@ -374,6 +371,8 @@ def _on_nav_change():
     st.session_state.page = st.session_state.nav_page_sel
 
 
+st.title("🚛 Real Balls Logistics Management")
+
 st.radio(
     label="",
     options=NAV_KEYS,
@@ -386,7 +385,6 @@ st.radio(
 )
 
 page = st.session_state.page
-st.title("🚛 Balls Logistics")
 
 # ------------------------- PAGE: Mileage (Fuel) -------------------------
 if page == "mileage":
@@ -846,7 +844,7 @@ elif page == "settings":
 
     def _build_quick_report() -> str:
         lines = []
-        lines.append("Balls Logistics Report")
+        lines.append("Real Balls Logistics Management — Report")
         lines.append("=====================")
         lines.append(f"Baseline: {st.session_state.baseline}")
         lines.append(f"Current: {st.session_state.last_mileage}")
