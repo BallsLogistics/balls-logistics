@@ -233,7 +233,6 @@ if st.session_state.user is None:
     st.stop()
 
 # ------------------------- Authenticated -------------------------
-st.success(f"Logged in: {st.session_state.user.get('email')}")
 
 # Quick logout button (mobile top)
 
@@ -246,12 +245,11 @@ def _logout():
     st.session_state.user = None
 
 
-st.button(
-    "🚪 Logout",
-    key="logout_main",
-    use_container_width=True,
-    on_click=_logout,
-)
+top_c1, top_c2 = st.columns([0.7, 0.3], gap="small")
+with top_c1:
+    st.markdown(f"**Logged in:** {st.session_state.user.get('email')}")
+with top_c2:
+    st.button("🚪 Logout", key="logout_main", use_container_width=True, on_click=_logout)
 
 
 if st.session_state.get("allow_cookie_fallback"):
@@ -393,7 +391,6 @@ if page == "mileage":
       <div class="metric"><div class="metric-label">Owner Earnings</div><div class="metric-value">${total_earn:.2f}</div></div>
     </div>
     """, unsafe_allow_html=True)
-    st.caption(f"Net (Owner − Expenses): ${net_income:.2f}")
     st.markdown(
         """
         <style>
@@ -430,11 +427,11 @@ if page == "mileage":
 
     c1, c2, c3 = st.columns(3, gap="small")
     with c1:
-        odometer_str = st.text_input("Odometer", placeholder="150350", key="mileage")
+        odometer_str = st.text_input("Odometer", placeholder="150350", key="mileage", label_visibility="collapsed")
     with c2:
-        gallons_str = st.text_input("Gallons", placeholder="20.5", key="gallons")
+        gallons_str = st.text_input("Gallons", placeholder="20.5", key="gallons", label_visibility="collapsed")
     with c3:
-        fuel_cost_str = st.text_input("Fuel $", placeholder="85.00", key="fuel_cost")
+        fuel_cost_str = st.text_input("Fuel $", placeholder="85.00", key="fuel_cost", label_visibility="collapsed")
 
     # Parse helpers (accepts comma or dot decimals)
     def _to_float(s: str):
