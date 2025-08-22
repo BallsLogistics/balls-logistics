@@ -236,6 +236,7 @@ if st.session_state.user is None:
 st.success(f"Logged in: {st.session_state.user.get('email')}")
 
 # Quick logout button (mobile top)
+
 def _logout():
     try:
         _forget_persisted_user_in_browser()
@@ -243,6 +244,7 @@ def _logout():
         pass
     # Streamlit callbacks auto-rerun; no need to call rerun()
     st.session_state.user = None
+
 
 st.button(
     "🚪 Logout",
@@ -255,8 +257,7 @@ st.button(
 if st.session_state.get("allow_cookie_fallback"):
     st.caption("Cookie fallback: you'll stay signed in until you close this tab.")
 
-    # ------------------------- Session Init -------------------------
-
+# ------------------------- Session Init -------------------------
 
 def init_session():
     defaults = {
@@ -272,6 +273,8 @@ def init_session():
         "expenses": [],
         "earnings": [],
         "pending_changes": False,
+        # log-page editing index
+        "log_edit_expense_index": None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -310,38 +313,6 @@ if "initialized" not in st.session_state:
 if st.session_state.get("pending_changes"):
     save_data()
     st.session_state.pending_changes = False
-
-# ------------------------- Dashboard (compact) -------------------------
-st.markdown("### 🌐 Dashboard")
-
-# Compute totals once
-total_exp = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
-total_earn = sum(e.get("owner", 0.0) for e in st.session_state.earnings)
-net_income = total_earn - total_exp
-
-# Strict 2×2 metrics grid using pure HTML (won't stack on iPhone)
-st.markdown(f"""
-<div class="metric-grid">
-  <div class="metric"><div class="metric-label">Total Miles</div><div class="metric-value">{st.session_state.total_miles:.2f} mi</div></div>
-  <div class="metric"><div class="metric-label">Fuel Used</div><div class="metric-value">{st.session_state.total_gallons:.2f} gal</div></div>
-  <div class="metric"><div class="metric-label">Fuel Cost</div><div class="metric-value">${st.session_state.total_cost:.2f}</div></div>
-  <div class="metric"><div class="metric-label">Owner Earnings</div><div class="metric-value">${total_earn:.2f}</div></div>
-</div>
-""", unsafe_allow_html=True)
-
-st.caption(f"Net (Owner − Expenses): ${net_income:.2f}")
-
-st.markdown("""
-<style>
-  .metric-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:.5rem; }
-  .metric{ border:1px solid var(--border-color, #e5e7eb); border-radius:.6rem; padding:.55rem .7rem; background: var(--metric-bg, #ffffff); }
-  .metric-label{ font-size:.78rem; opacity:.75; margin-bottom:.15rem; }
-  .metric-value{ font-size:1.05rem; font-weight:600; }
-  @media (prefers-color-scheme: dark){
-    .metric{ background:#0b1220; border-color:#2a3342; }
-  }
-</style>
-""", unsafe_allow_html=True)
 
 # ------------------------- Navigation (compact) -------------------------
 NAV = [
@@ -407,8 +378,38 @@ st.radio(
 page = st.session_state.page
 st.title("🚛 Balls Logistics")
 
-# ------------------------- PAGE: Mileage -------------------------
+# ------------------------- PAGE: Mileage (Fuel) -------------------------
 if page == "mileage":
+    # ---- Dashboard (now ONLY on Fuel page, and placed under the nav buttons) ----
+    total_exp = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
+    total_earn = sum(e.get("owner", 0.0) for e in st.session_state.earnings)
+    net_income = total_earn - total_exp
+
+    st.markdown(f"""
+    <div class="metric-grid">
+      <div class="metric"><div class="metric-label">Total Miles</div><div class="metric-value">{st.session_state.total_miles:.2f} mi</div></div>
+      <div class="metric"><div class="metric-label">Fuel Used</div><div class="metric-value">{st.session_state.total_gallons:.2f} gal</div></div>
+      <div class="metric"><div class="metric-label">Fuel Cost</div><div class="metric-value">${st.session_state.total_cost:.2f}</div></div>
+      <div class="metric"><div class="metric-label">Owner Earnings</div><div class="metric-value">${total_earn:.2f}</div></div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.caption(f"Net (Owner − Expenses): ${net_income:.2f}")
+    st.markdown(
+        """
+        <style>
+          .metric-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:.5rem; }
+          .metric{ border:1px solid var(--border-color, #e5e7eb); border-radius:.6rem; padding:.55rem .7rem; background: var(--metric-bg, #ffffff); }
+          .metric-label{ font-size:.78rem; opacity:.75; margin-bottom:.15rem; }
+          .metric-value{ font-size:1.05rem; font-weight:600; }
+          @media (prefers-color-scheme: dark){
+            .metric{ background:#0b1220; border-color:#2a3342; }
+          }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ---- Baseline & Trip ----
     st.subheader("📍 Baseline & Trip")
 
     if st.session_state.baseline is None:
@@ -435,14 +436,12 @@ if page == "mileage":
     with c3:
         fuel_cost_str = st.text_input("Fuel $", placeholder="85.00", key="fuel_cost")
 
-
     # Parse helpers (accepts comma or dot decimals)
     def _to_float(s: str):
         try:
             return float((s or "").replace(",", ".").strip())
         except Exception:
             return None
-
 
     new_mileage = _to_float(odometer_str)
     gallons = _to_float(gallons_str)
@@ -569,6 +568,7 @@ if page == "mileage":
 elif page == "expenses":
     st.subheader("💸 Expenses")
 
+    # --- Add (or edit) form ---
     options = ["Fuel", "Repair", "Certificates", "Insurance", "Trailer Rent", "IFTA", "Reefer Fuel", "Other"]
     today = datetime.now().strftime("%Y-%m-%d")
 
@@ -580,57 +580,61 @@ elif page == "expenses":
         with c2:
             amount = st.number_input("Amount $", min_value=0.0, step=0.01, key="new_expense_amount")
             if st.button("➕ Add", use_container_width=True):
-                exp = {"date": today, "type": expense_type, "description": description, "amount": amount}
+                # create stable id for expense
+                exp_id = int(datetime.now().timestamp() * 1000)
+                exp = {"id": exp_id, "date": today, "type": expense_type, "description": description, "amount": amount}
                 st.session_state.expenses.append(exp)
                 st.session_state.log.append({
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "type": "Expense", "amount": amount, "note": f"{expense_type}: {description}"
+                    "type": "Expense", "amount": amount, "note": f"{expense_type}: {description}", "expense_id": exp_id
                 })
                 st.session_state.pending_changes = True
                 rerun()
-
-    idx = st.session_state.edit_expense_index
-    if idx is not None and 0 <= idx < len(st.session_state.expenses):
-        exp = st.session_state.expenses[idx]
-        st.info(f"Editing {exp['date']}")
-        new_type = st.selectbox("Type", options, index=options.index(exp["type"]) if exp["type"] in options else 0)
-        new_desc = st.text_input("Description", value=exp["description"])
-        new_amt = st.number_input("Amount $", min_value=0.0, step=0.01, value=float(exp["amount"]))
-        c1, c2 = st.columns(2, gap="small")
-        with c1:
-            if st.button("💾 Save", use_container_width=True):
-                st.session_state.expenses[idx] = {"date": exp["date"], "type": new_type, "description": new_desc,
-                                                  "amount": new_amt}
-                st.session_state.edit_expense_index = None
-                st.session_state.pending_changes = True
-                rerun()
-        with c2:
-            if st.button("❌ Cancel", use_container_width=True):
-                st.session_state.edit_expense_index = None
-                rerun()
-
-    if st.session_state.expenses:
-        st.markdown("### 📋 Logged")
-        for i, entry in enumerate(reversed(st.session_state.expenses)):
-            idx = len(st.session_state.expenses) - 1 - i
-            label = f"{entry['date']} – ${entry['amount']:.2f} – {entry['type']} ({entry['description']})"
-            c1, c2, c3 = st.columns([0.8, 0.1, 0.1], gap="small")
+    else:
+        # If user navigated here while editing (e.g., started from Log)
+        idx = st.session_state.edit_expense_index
+        if idx is not None and 0 <= idx < len(st.session_state.expenses):
+            exp = st.session_state.expenses[idx]
+            st.info(f"Editing {exp.get('date', today)}")
+            new_type = st.selectbox("Type", options, index=options.index(exp.get("type", "Other")) if exp.get("type") in options else 0)
+            new_desc = st.text_input("Description", value=exp.get("description", ""))
+            new_amt = st.number_input("Amount $", min_value=0.0, step=0.01, value=float(exp.get("amount", 0.0)))
+            c1, c2 = st.columns(2, gap="small")
             with c1:
-                st.write(label)
-            with c2:
-                if st.button("✏️", key=f"edit_expense_{i}"):
-                    st.session_state.edit_expense_index = idx
-                    rerun()
-            with c3:
-                if st.button("🗑", key=f"del_expense_{i}"):
-                    del st.session_state.expenses[idx]
+                if st.button("💾 Save", use_container_width=True):
+                    # preserve id & date
+                    exp_id = exp.get("id")
+                    st.session_state.expenses[idx] = {"id": exp_id, "date": exp.get("date", today), "type": new_type, "description": new_desc, "amount": new_amt}
+                    # update linked log entry if exists
+                    if exp_id:
+                        for le in reversed(st.session_state.log):
+                            if le.get("type") == "Expense" and le.get("expense_id") == exp_id:
+                                le["amount"] = new_amt
+                                le["note"] = f"{new_type}: {new_desc}"
+                                break
+                    st.session_state.edit_expense_index = None
                     st.session_state.pending_changes = True
                     rerun()
+            with c2:
+                if st.button("❌ Cancel", use_container_width=True):
+                    st.session_state.edit_expense_index = None
+                    rerun()
+
+    # --- Statistics (ONLY Expenses by Category), placed below +Add ---
+    st.markdown("### 📊 Statistics")
+    if st.session_state.expenses:
+        df_exp = pd.DataFrame(st.session_state.expenses)
+        # guard for legacy entries without amount/type
+        if not df_exp.empty and set(["type", "amount"]).issubset(df_exp.columns):
+            df_grp = df_exp.groupby("type")["amount"].sum().reset_index()
+            st.altair_chart(
+                alt.Chart(df_grp).mark_arc().encode(theta="amount", color="type", tooltip=["type", "amount"]).properties(title="Expenses by Category", height=180),
+                use_container_width=True,
+            )
+        total_expense_amount = float(df_exp.get("amount", pd.Series(dtype=float)).sum())
+        st.markdown(f"**Total:** ${total_expense_amount:.2f}")
     else:
         st.info("No expenses yet.")
-
-    total_expense_amount = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
-    st.markdown(f"**Total:** ${total_expense_amount:.2f}")
 
 # ------------------------- PAGE: Earnings -------------------------
 elif page == "earnings":
@@ -677,17 +681,91 @@ elif page == "earnings":
 # ------------------------- PAGE: Log -------------------------
 elif page == "log":
     st.subheader("📜 Log")
+
+    # Helper: delete expense along with its linked log record if present
+    def _delete_expense_at(idx: int):
+        if 0 <= idx < len(st.session_state.expenses):
+            exp = st.session_state.expenses[idx]
+            exp_id = exp.get("id")
+            # remove expense
+            del st.session_state.expenses[idx]
+            # remove matching log entry (prefer by id; otherwise best-effort by note+amount)
+            for j in range(len(st.session_state.log) - 1, -1, -1):
+                le = st.session_state.log[j]
+                if le.get("type") == "Expense":
+                    if (exp_id and le.get("expense_id") == exp_id) or (
+                        le.get("amount") == exp.get("amount") and le.get("note") == f"{exp.get('type')}: {exp.get('description')}"):
+                        del st.session_state.log[j]
+                        break
+            st.session_state.pending_changes = True
+
+    # --- Timeline for Trips & Income (exclude Expenses to avoid duplication) ---
     if st.session_state.log:
-        for entry in reversed(st.session_state.log):
-            if entry.get("type") == "Trip":
-                st.write(
-                    f"🕒 {entry['timestamp']} — 🚛 Trip: {entry['distance']:.2f} mi, {entry['mpg']:.2f} MPG, ${entry['total_cost']:.2f}, ${entry['cost_per_mile']:.2f}/mi"
-                )
-            else:
-                st.write(
-                    f"🕒 {entry['timestamp']} — {entry.get('type')}: ${entry.get('amount', 0.0):.2f} ({entry.get('note', '')})")
+        st.markdown("### 🕒 Timeline (Trips & Income)")
+        timeline = [e for e in st.session_state.log if e.get("type") != "Expense"]
+        if timeline:
+            for entry in reversed(timeline):
+                if entry.get("type") == "Trip":
+                    st.write(
+                        f"🕒 {entry['timestamp']} — 🚛 Trip: {entry['distance']:.2f} mi, {entry['mpg']:.2f} MPG, ${entry['total_cost']:.2f}, ${entry['cost_per_mile']:.2f}/mi"
+                    )
+                else:
+                    st.write(
+                        f"🕒 {entry['timestamp']} — {entry.get('type')}: ${entry.get('amount', 0.0):.2f} ({entry.get('note', '')})")
+        else:
+            st.caption("No trip/income events yet.")
     else:
         st.info("Empty log.")
+
+    st.markdown("---")
+    # --- Expenses management now lives here (edit/delete mechanics moved from Expenses page) ---
+    st.markdown("### 💸 Expenses — edit here")
+    if st.session_state.expenses:
+        for i, entry in enumerate(reversed(st.session_state.expenses)):
+            idx = len(st.session_state.expenses) - 1 - i
+            label = f"{entry.get('date','')} – ${entry.get('amount',0.0):.2f} – {entry.get('type','')} ({entry.get('description','')})"
+            c1, c2, c3 = st.columns([0.75, 0.125, 0.125], gap="small")
+            with c1:
+                st.write(label)
+            with c2:
+                if st.button("✏️", key=f"log_edit_expense_{i}"):
+                    st.session_state.log_edit_expense_index = idx
+                    st.session_state.edit_expense_index = None  # avoid conflicts
+                    rerun()
+            with c3:
+                if st.button("🗑", key=f"log_del_expense_{i}"):
+                    _delete_expense_at(idx)
+                    rerun()
+
+            # Inline editor under the row
+            if st.session_state.get("log_edit_expense_index") == idx:
+                with st.container(border=True):
+                    opts = ["Fuel", "Repair", "Certificates", "Insurance", "Trailer Rent", "IFTA", "Reefer Fuel", "Other"]
+                    new_type = st.selectbox("Type", opts, index=opts.index(entry.get("type","Other")) if entry.get("type") in opts else 0, key=f"log_edit_type_{i}")
+                    new_desc = st.text_input("Description", value=entry.get("description",""), key=f"log_edit_desc_{i}")
+                    new_amt = st.number_input("Amount $", min_value=0.0, step=0.01, value=float(entry.get("amount",0.0)), key=f"log_edit_amt_{i}")
+                    cc1, cc2 = st.columns(2)
+                    with cc1:
+                        if st.button("💾 Save", key=f"log_save_{i}", use_container_width=True):
+                            exp = st.session_state.expenses[idx]
+                            exp_id = exp.get("id")
+                            st.session_state.expenses[idx] = {"id": exp_id, "date": entry.get("date"), "type": new_type, "description": new_desc, "amount": new_amt}
+                            # update linked log entry
+                            if exp_id:
+                                for le in reversed(st.session_state.log):
+                                    if le.get("type") == "Expense" and le.get("expense_id") == exp_id:
+                                        le["amount"] = new_amt
+                                        le["note"] = f"{new_type}: {new_desc}"
+                                        break
+                            st.session_state.log_edit_expense_index = None
+                            st.session_state.pending_changes = True
+                            rerun()
+                    with cc2:
+                        if st.button("❌ Cancel", key=f"log_cancel_{i}", use_container_width=True):
+                            st.session_state.log_edit_expense_index = None
+                            rerun()
+    else:
+        st.caption("No expenses yet — add some on the Expenses page.")
 
 # ------------------------- PAGE: Upload -------------------------
 elif page == "upload":
@@ -725,14 +803,12 @@ elif page == "settings":
     st.divider()
     st.markdown("### 📁 Backup & Restore")
 
-
     def _export_data_bytes():
         data = {k: st.session_state[k] for k in [
             "baseline", "last_mileage", "total_miles", "total_cost", "total_gallons",
             "last_trip_summary", "log", "expenses", "earnings"
         ]}
         return json.dumps(data, indent=2).encode("utf-8")
-
 
     st.download_button(
         label="📥 Download JSON",
@@ -758,7 +834,6 @@ elif page == "settings":
     st.divider()
     st.markdown("### 📄 Quick Report")
 
-
     def _build_quick_report() -> str:
         lines = []
         lines.append("Balls Logistics Report")
@@ -771,14 +846,13 @@ elif page == "settings":
         if st.session_state.total_gallons > 0:
             lines.append(f"Avg MPG: {st.session_state.total_miles / st.session_state.total_gallons:.2f}")
         if st.session_state.total_miles > 0:
-            lines.append(f"Avg $/mi: {st.session_state.total_cost / st.session_state.total_miles:.2f}")
+            lines.append(f"Avg $/mi: ${st.session_state.total_cost / st.session_state.total_miles:.2f}")
         lines.append("")
         lines.append("Earnings:")
         for e in st.session_state.earnings:
             lines.append(
                 f"- {e['date']}: Worker ${e['worker']}, Owner ${e['owner']}, Net ${e.get('net_owner', e['owner']):.2f}")
         return "\n".join(lines)
-
 
 if page == "settings":
     if st.button("🖨️ Generate Text", use_container_width=True, key="gen_report_settings"):
@@ -787,39 +861,5 @@ if page == "settings":
         st.download_button("💾 Download .txt", txt, file_name="balls_logistics_report.txt", use_container_width=True,
                            key="dl_report_settings")
 
-# ------------------------- Statistics (bottom compact block) -------------------------
-if page == "mileage":
-    st.markdown("---")
-    st.markdown("### 📊 Statistics")
-    if st.session_state.total_miles > 0 and st.session_state.total_gallons > 0:
-        avg_mpg = st.session_state.total_miles / st.session_state.total_gallons
-        avg_cpm = st.session_state.total_cost / st.session_state.total_miles if st.session_state.total_miles else 0
-        c1, c2 = st.columns(2, gap="small")
-        with c1:
-            st.metric("Avg MPG", f"{avg_mpg:.2f}")
-        with c2:
-            st.metric("Avg $/mi", f"${avg_cpm:.2f}")
-
-        mpg_data = [
-            {"Date": e["timestamp"], "MPG": e["mpg"]}
-            for e in st.session_state.log if e.get("type") == "Trip" and e.get("mpg") is not None
-        ]
-        if mpg_data:
-            mpg_df = pd.DataFrame(mpg_data)
-            st.altair_chart(
-                alt.Chart(mpg_df).mark_line(point=True).encode(x="Date:T", y="MPG:Q").properties(title="MPG per Trip",
-                                                                                                 height=160),
-                use_container_width=True,
-            )
-
-        if st.session_state.expenses:
-            df_exp = pd.DataFrame(st.session_state.expenses)
-            df_exp = df_exp.groupby("type")["amount"].sum().reset_index()
-            st.altair_chart(
-                alt.Chart(df_exp).mark_arc().encode(theta="amount", color="type",
-                                                    tooltip=["type", "amount"]).properties(title="Expenses by Category",
-                                                                                           height=180),
-                use_container_width=True,
-            )
-    else:
-        st.caption("Add trips to see stats.")
+# NOTE: Former Mileage statistics block removed per request.
+# Statistics now lives on the Expenses page and shows ONLY "Expenses by Category".
