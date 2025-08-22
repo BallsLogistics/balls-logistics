@@ -355,7 +355,8 @@ st.markdown(
         [data-testid="stRadio"] label:has(input:checked){ background:#3b82f6; border-color:#3b82f6; color:#fff; }
       }
     </style>
-    ''',
+    '''
+    ,
     unsafe_allow_html=True,
 )
 
@@ -812,13 +813,48 @@ elif page == "settings":
     if not st.session_state.reset_requested:
         if st.button("❌ Reset App Data", use_container_width=True):
             st.session_state.reset_requested = True
-            st.warning("Tap again to confirm. This erases all data.")
+            st.warning("Tap again to confirm. This erases all your saved data.")
     else:
         if st.button("⚠️ Confirm Reset", use_container_width=True):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            _forget_persisted_user_in_browser()
-            st.markdown("<script>window.location.reload();</script>", unsafe_allow_html=True)
+            try:
+                uid = st.session_state.user.get('localId') if st.session_state.get('user') else None
+                token = st.session_state.user.get('idToken') if st.session_state.get('user') else None
+                # remove data from Firebase (best-effort)
+                if uid and token:
+                    try:
+                        db.child("users").child(uid).remove(token)
+                    except Exception:
+                        pass
+                # reset in-memory state to defaults (preserve auth)
+                defaults = {
+                    "edit_expense_index": None,
+                    "baseline": None,
+                    "log": [],
+                    "total_miles": 0.0,
+                    "total_cost": 0.0,
+                    "total_gallons": 0.0,
+                    "last_mileage": None,
+                    "page": "mileage",
+                    "last_trip_summary": {},
+                    "expenses": [],
+                    "earnings": [],
+                    "pending_changes": False,
+                    "log_edit_expense_index": None,
+                    "reset_requested": False,
+                }
+                for k, v in defaults.items():
+                    st.session_state[k] = v
+                # persist cleared payload
+                if uid and token:
+                    try:
+                        save_data()
+                    except Exception:
+                        pass
+                st.success("All app data cleared.")
+            except Exception as e:
+                st.error(f"Reset failed: {e}")
+            finally:
+                rerun()
 
     # --------------------- Backup & Restore (Settings only) ---------------------
     st.divider()
