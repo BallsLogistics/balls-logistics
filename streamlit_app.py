@@ -67,18 +67,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- Account bar styles (email without parentheses + wide Logout) ---
-st.markdown(
-    """
-    <style>
-      .account-row { display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin:.25rem 0 .35rem 0; }
-      .account-row .email { font-size:.95rem; font-weight:500; overflow-wrap:anywhere; }
-      .account-row .stButton>button { height:36px !important; padding:.35rem .6rem !important; border-radius:10px !important; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 # ------------------------- Secrets Check -------------------------
 if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID", "cookie_password"]):
     st.stop()
@@ -245,19 +233,35 @@ if st.session_state.user is None:
     st.stop()
 
 # ------------------------- Authenticated -------------------------
-# Account bar: "Logged in: email" (no parentheses) + wide Logout button
+# One-line header: "Logged in:(email)" + Logout
 
-def render_account_bar(email: str | None):
-    st.markdown('<div class="account-row">', unsafe_allow_html=True)
-    left, right = st.columns([0.72, 0.28], gap="small")
-    with left:
-        st.markdown(f'<div class="email">Logged in: {email or "—"}</div>', unsafe_allow_html=True)
-    with right:
-        if st.button("Logout", key="logout_btn", use_container_width=True):
-            _force_logout()
-    st.markdown('</div>', unsafe_allow_html=True)
+def _logout():
+    try:
+        _forget_persisted_user_in_browser()
+    except Exception:
+        pass
+    st.session_state.user = None  # reruns automatically
 
-render_account_bar(st.session_state.user.get('email'))
+st.markdown(
+    f"""
+    <div class="topbar">
+      <span><strong>Logged in:</strong> ({st.session_state.user.get('email')})</span>
+      <a class="logout-btn" href="?logout=1">🚪 Logout</a>
+    </div>
+    <style>
+      .topbar {{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; }}
+      .logout-btn {{
+        display:inline-flex; align-items:center; gap:.35rem;
+        padding:.35rem .6rem; border:1px solid #e5e7eb; border-radius:.5rem; text-decoration:none;
+      }}
+      @media (prefers-color-scheme: dark) {{
+        .logout-btn {{ border-color:#374151; color:#e5e7eb; }}
+      }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 if st.session_state.get("allow_cookie_fallback"):
     st.caption("Cookie fallback: you'll stay signed in until you close this tab.")
