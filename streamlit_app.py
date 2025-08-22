@@ -17,7 +17,68 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# metric styles are now global; local override removed
+st.markdown(
+    """
+    <style>
+      /* Global reset to avoid sideways overflow on iPhone */
+      * { box-sizing: border-box; }
+      html, body { max-width: 100%; overflow-x: hidden; touch-action: pan-y; }
+      [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data-testid="stToolbar"] { overflow-x: hidden; }
+      /* Base scale down; tighten paddings; mobile-first tweaks */
+      :root { --scale: .90; }
+      html, body, [data-testid="stAppViewContainer"] { font-size: calc(16px * var(--scale)); }
+
+      .block-container { padding: .6rem .6rem 2rem; max-width: 720px; width: 100%; margin: 0 auto; }
+      .stButton button, .stDownloadButton button { padding: .45rem .7rem; font-size: .92rem; border-radius: .6rem; }
+      .stTextInput input, .stNumberInput input { height: 36px; font-size: .95rem; }
+      [data-testid="stMetric"] { padding: .25rem .5rem; }
+      [data-testid="stMetricLabel"] p { font-size: .78rem; margin-bottom: 0; }
+      [data-testid="stMetricValue"] div { font-size: 1.05rem; }
+      [data-testid="stMetricDelta"] { font-size: .75rem; }
+
+      /* Horizontal nav: compact chips */
+      .nav-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.45rem .6rem; border:1px solid var(--accent,#ddd); border-radius:.75rem; margin-right:.4rem; cursor:pointer; font-size:.95rem; background: white; }
+      .nav-chip.active { background: #eff6ff; border-color:#93c5fd; }
+      .nav-bar { overflow-x:auto; white-space:nowrap; padding-bottom:.25rem; margin-bottom:.35rem; }
+
+      /* Media elements & charts never overflow */
+      img, svg, canvas, video { max-width: 100%; height: auto; display: block; }
+      [data-testid="stHorizontalBlock"], [data-testid="stColumns"], .element-container { overflow-x: hidden; max-width: 100%; }
+
+      /* Inputs: remove number spinners */
+      input[type=number]::-webkit-outer-spin-button,
+      input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      input[type=number] { appearance: textfield; }
+
+      /* Headings smaller */
+      h1 { font-size: 1.6rem; margin:.45rem 0 .35rem; }
+      h2 { font-size: 1.05rem; margin:.45rem 0 .3rem; }
+      h3 { font-size: .95rem; margin:.4rem 0 .25rem; }
+
+      /* Mobile breakpoint */
+      @media (max-width: 430px) {
+        :root { --scale: .84; }
+        .block-container { max-width: 520px; padding:.5rem .5rem 2rem; }
+        .stButton button, .stDownloadButton button { padding:.4rem .55rem; font-size:.88rem; }
+        .stTextInput input, .stNumberInput input { height: 34px; font-size:.9rem; }
+      }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# --- Account bar styles (email without parentheses + wide Logout) ---
+st.markdown(
+    """
+    <style>
+      .account-row { display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin:.25rem 0 .35rem 0; }
+      .account-row .email { font-size:.95rem; font-weight:500; overflow-wrap:anywhere; }
+      .account-row .logout-link { display:inline-flex; align-items:center; padding:.35rem .6rem; border:1px solid #e5e7eb; border-radius:10px; text-decoration:none; }
+      @media (prefers-color-scheme: dark){ .account-row .logout-link { border-color:#374151; color:#e5e7eb; } }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ------------------------- Secrets Check -------------------------
 if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID", "cookie_password"]):
@@ -271,7 +332,32 @@ NAV_KEYS = [k for k, _ in NAV]
 NAV_LABELS = {k: v for k, v in NAV}
 
 # Style the radio as a 3×2 button grid and highlight the active choice
-# nav styles are now global; local override removed
+st.markdown(
+    '''
+    <style>
+      [data-testid="stRadio"] > label{ display:none !important; }
+      [data-testid="stRadio"] [role="radiogroup"]{
+        display:grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap:.4rem !important;
+      }
+      [data-testid="stRadio"] label{
+        border:1px solid #e5e7eb; border-radius:.8rem; padding:.6rem .7rem; min-height:44px;
+        display:flex; align-items:center; justify-content:center; text-align:center; margin:0 !important;
+        background:#fff; color:inherit;
+      }
+      [data-testid="stRadio"] input{ position:absolute; opacity:0; width:0; height:0; }
+      [data-testid="stRadio"] label:has(input:checked){
+        background:#2563eb; color:#fff; border-color:#2563eb;
+      }
+      @media (prefers-color-scheme: dark){
+        [data-testid="stRadio"] label{ background:#111827; border-color:#374151; color:#e5e7eb; }
+        [data-testid="stRadio"] label:has(input:checked){ background:#3b82f6; border-color:#3b82f6; color:#fff; }
+      }
+    </style>
+    ''',
+    unsafe_allow_html=True,
+)
 
 # Keep the radio in sync with session_state.page
 if "nav_page_sel" not in st.session_state:
