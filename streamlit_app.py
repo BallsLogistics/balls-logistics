@@ -51,7 +51,7 @@ st.markdown(
       input[type=number] { appearance: textfield; }
 
       /* Headings smaller */
-      h1 { font-size: 1.25rem; margin:.5rem 0 .35rem; }
+      h1 { font-size: 1.38rem; margin:.45rem 0 .35rem; }
       h2 { font-size: 1.05rem; margin:.45rem 0 .3rem; }
       h3 { font-size: .95rem; margin:.4rem 0 .25rem; }
 
@@ -246,11 +246,15 @@ if st.session_state.user is None:
 
     st.stop()
 
+
 # ------------------------- Authenticated -------------------------
 # Account bar: "Logged in: email" (no parentheses) + wide Logout button
 
 def render_account_bar(email: str | None):
-    st.markdown(f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div><a class="logout-link" href="?logout=1">Logout</a></div>''', unsafe_allow_html=True)
+    st.markdown(
+        f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div><a class="logout-link" href="?logout=1">Logout</a></div>''',
+        unsafe_allow_html=True)
+
 
 render_account_bar(st.session_state.user.get('email'))
 
@@ -396,7 +400,7 @@ if page == "mileage":
       <div class="metric"><div class="metric-label">Owner Earnings</div><div class="metric-value">${total_earn:.2f}</div></div>
     </div>
     """, unsafe_allow_html=True)
-    st.caption(f"Net (Owner − Expenses): ${net_income:.2f}")
+
     st.markdown(
         """
         <style>
@@ -439,12 +443,14 @@ if page == "mileage":
     with c3:
         fuel_cost_str = st.text_input("Fuel $", placeholder="85.00", key="fuel_cost")
 
+
     # Parse helpers (accepts comma or dot decimals)
     def _to_float(s: str):
         try:
             return float((s or "").replace(",", ".").strip())
         except Exception:
             return None
+
 
     new_mileage = _to_float(odometer_str)
     gallons = _to_float(gallons_str)
@@ -599,7 +605,8 @@ elif page == "expenses":
         if idx is not None and 0 <= idx < len(st.session_state.expenses):
             exp = st.session_state.expenses[idx]
             st.info(f"Editing {exp.get('date', today)}")
-            new_type = st.selectbox("Type", options, index=options.index(exp.get("type", "Other")) if exp.get("type") in options else 0)
+            new_type = st.selectbox("Type", options,
+                                    index=options.index(exp.get("type", "Other")) if exp.get("type") in options else 0)
             new_desc = st.text_input("Description", value=exp.get("description", ""))
             new_amt = st.number_input("Amount $", min_value=0.0, step=0.01, value=float(exp.get("amount", 0.0)))
             c1, c2 = st.columns(2, gap="small")
@@ -607,7 +614,8 @@ elif page == "expenses":
                 if st.button("💾 Save", use_container_width=True):
                     # preserve id & date
                     exp_id = exp.get("id")
-                    st.session_state.expenses[idx] = {"id": exp_id, "date": exp.get("date", today), "type": new_type, "description": new_desc, "amount": new_amt}
+                    st.session_state.expenses[idx] = {"id": exp_id, "date": exp.get("date", today), "type": new_type,
+                                                      "description": new_desc, "amount": new_amt}
                     # update linked log entry if exists
                     if exp_id:
                         for le in reversed(st.session_state.log):
@@ -631,7 +639,9 @@ elif page == "expenses":
         if not df_exp.empty and set(["type", "amount"]).issubset(df_exp.columns):
             df_grp = df_exp.groupby("type")["amount"].sum().reset_index()
             st.altair_chart(
-                alt.Chart(df_grp).mark_arc().encode(theta="amount", color="type", tooltip=["type", "amount"]).properties(title="Expenses by Category", height=180),
+                alt.Chart(df_grp).mark_arc().encode(theta="amount", color="type",
+                                                    tooltip=["type", "amount"]).properties(title="Expenses by Category",
+                                                                                           height=180),
                 use_container_width=True,
             )
         total_expense_amount = float(df_exp.get("amount", pd.Series(dtype=float)).sum())
@@ -685,6 +695,7 @@ elif page == "earnings":
 elif page == "log":
     st.subheader("📜 Log")
 
+
     # Helper: delete expense along with its linked log record if present
     def _delete_expense_at(idx: int):
         if 0 <= idx < len(st.session_state.expenses):
@@ -697,10 +708,12 @@ elif page == "log":
                 le = st.session_state.log[j]
                 if le.get("type") == "Expense":
                     if (exp_id and le.get("expense_id") == exp_id) or (
-                        le.get("amount") == exp.get("amount") and le.get("note") == f"{exp.get('type')}: {exp.get('description')}"):
+                            le.get("amount") == exp.get("amount") and le.get(
+                        "note") == f"{exp.get('type')}: {exp.get('description')}"):
                         del st.session_state.log[j]
                         break
             st.session_state.pending_changes = True
+
 
     # --- Timeline for Trips & Income (exclude Expenses to avoid duplication) ---
     if st.session_state.log:
@@ -726,7 +739,7 @@ elif page == "log":
     if st.session_state.expenses:
         for i, entry in enumerate(reversed(st.session_state.expenses)):
             idx = len(st.session_state.expenses) - 1 - i
-            label = f"{entry.get('date','')} – ${entry.get('amount',0.0):.2f} – {entry.get('type','')} ({entry.get('description','')})"
+            label = f"{entry.get('date', '')} – ${entry.get('amount', 0.0):.2f} – {entry.get('type', '')} ({entry.get('description', '')})"
             c1, c2, c3 = st.columns([0.75, 0.125, 0.125], gap="small")
             with c1:
                 st.write(label)
@@ -743,16 +756,21 @@ elif page == "log":
             # Inline editor under the row
             if st.session_state.get("log_edit_expense_index") == idx:
                 with st.container(border=True):
-                    opts = ["Fuel", "Repair", "Certificates", "Insurance", "Trailer Rent", "IFTA", "Reefer Fuel", "Other"]
-                    new_type = st.selectbox("Type", opts, index=opts.index(entry.get("type","Other")) if entry.get("type") in opts else 0, key=f"log_edit_type_{i}")
-                    new_desc = st.text_input("Description", value=entry.get("description",""), key=f"log_edit_desc_{i}")
-                    new_amt = st.number_input("Amount $", min_value=0.0, step=0.01, value=float(entry.get("amount",0.0)), key=f"log_edit_amt_{i}")
+                    opts = ["Fuel", "Repair", "Certificates", "Insurance", "Trailer Rent", "IFTA", "Reefer Fuel",
+                            "Other"]
+                    new_type = st.selectbox("Type", opts, index=opts.index(entry.get("type", "Other")) if entry.get(
+                        "type") in opts else 0, key=f"log_edit_type_{i}")
+                    new_desc = st.text_input("Description", value=entry.get("description", ""),
+                                             key=f"log_edit_desc_{i}")
+                    new_amt = st.number_input("Amount $", min_value=0.0, step=0.01,
+                                              value=float(entry.get("amount", 0.0)), key=f"log_edit_amt_{i}")
                     cc1, cc2 = st.columns(2)
                     with cc1:
                         if st.button("💾 Save", key=f"log_save_{i}", use_container_width=True):
                             exp = st.session_state.expenses[idx]
                             exp_id = exp.get("id")
-                            st.session_state.expenses[idx] = {"id": exp_id, "date": entry.get("date"), "type": new_type, "description": new_desc, "amount": new_amt}
+                            st.session_state.expenses[idx] = {"id": exp_id, "date": entry.get("date"), "type": new_type,
+                                                              "description": new_desc, "amount": new_amt}
                             # update linked log entry
                             if exp_id:
                                 for le in reversed(st.session_state.log):
@@ -806,12 +824,14 @@ elif page == "settings":
     st.divider()
     st.markdown("### 📁 Backup & Restore")
 
+
     def _export_data_bytes():
         data = {k: st.session_state[k] for k in [
             "baseline", "last_mileage", "total_miles", "total_cost", "total_gallons",
             "last_trip_summary", "log", "expenses", "earnings"
         ]}
         return json.dumps(data, indent=2).encode("utf-8")
+
 
     st.download_button(
         label="📥 Download JSON",
@@ -836,6 +856,7 @@ elif page == "settings":
     # --------------------- Quick Report (Settings only) ---------------------
     st.divider()
     st.markdown("### 📄 Quick Report")
+
 
     def _build_quick_report() -> str:
         lines = []
