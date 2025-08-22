@@ -444,11 +444,11 @@ if page == "mileage":
 
     c1, c2, c3 = st.columns(3, gap="small")
     with c1:
-        odometer_str = st.text_input("Odometer", placeholder="150350", key="mileage")
+        odometer_str = st.text_input("Odometer", placeholder="", key="mileage")
     with c2:
-        gallons_str = st.text_input("Gallons", placeholder="20.5", key="gallons")
+        gallons_str = st.text_input("Gallons", placeholder="", key="gallons")
     with c3:
-        fuel_cost_str = st.text_input("Fuel $", placeholder="85.00", key="fuel_cost")
+        fuel_cost_str = st.text_input("Fuel $", placeholder="", key="fuel_cost")
 
 
     # Parse helpers (accepts comma or dot decimals)
@@ -467,9 +467,9 @@ if page == "mileage":
     st.markdown(
         """
         <script>
-          const hints = ["150350","20.5","85.00"]; // placeholders we used
-          for (const ph of hints) {
-            document.querySelectorAll(`input[placeholder="${ph}"]`).forEach(el => {
+          const labels = ["Odometer","Gallons","Fuel $"]; // target by accessible label
+          for (const lb of labels) {
+            document.querySelectorAll(`input[aria-label="${lb}"]`).forEach(el => {
               el.setAttribute('inputmode','decimal');
               el.setAttribute('pattern','[0-9]*');
             });
