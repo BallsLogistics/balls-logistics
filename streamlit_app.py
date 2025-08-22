@@ -467,13 +467,21 @@ if page == "mileage":
     st.markdown(
         """
         <script>
-          const labels = ["Odometer","Gallons","Fuel $"]; // target by accessible label
-          for (const lb of labels) {
-            document.querySelectorAll(`input[aria-label="${lb}"]`).forEach(el => {
-              el.setAttribute('inputmode','decimal');
-              el.setAttribute('pattern','[0-9]*');
-            });
-          }
+          // Ensure numeric keypad for ALL Fuel page inputs
+          const selectors = [
+            'input[aria-label="Odometer"]',
+            'input[aria-label="Gallons"]',
+            'input[aria-label="Fuel $"]',
+            'input[aria-label*="Starting mileage"]', // baseline number_input
+          ];
+          const setNumeric = (el) => {
+            el.setAttribute('inputmode','decimal');
+            el.setAttribute('pattern','[0-9]*');
+            el.setAttribute('autocomplete','off');
+          };
+          selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(setNumeric);
+          });
         </script>
         """,
         unsafe_allow_html=True,
