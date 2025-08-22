@@ -276,6 +276,10 @@ def init_session():
         "expenses": [],
         "earnings": [],
         "pending_changes": False,
+        # input buffers for Trip form
+        "mileage": "",
+        "gallons": "",
+        "fuel_cost": "",
         # log-page editing index
         "log_edit_expense_index": None,
     }
@@ -423,6 +427,10 @@ if page == "mileage":
         if st.button("✅ Save Baseline", disabled=base <= 0, use_container_width=True):
             st.session_state.baseline = base
             st.session_state.last_mileage = base
+            # clear Trip inputs after setting baseline
+            st.session_state["mileage"] = ""
+            st.session_state["gallons"] = ""
+            st.session_state["fuel_cost"] = ""
             st.session_state.pending_changes = True
             rerun()
     else:
@@ -487,11 +495,8 @@ if page == "mileage":
         is_valid = False
 
     confirm_click = st.button("✅ Confirm Trip", disabled=not is_valid, use_container_width=True)
-    confirm_request = (_action == "confirm_trip")
-    if confirm_request and not is_valid:
-        st.warning("Fill all fields before using the FAB.")
 
-    if (confirm_click or (confirm_request and is_valid)):
+    if confirm_click:
         if st.session_state.last_mileage is not None:
             try:
                 distance = new_mileage - st.session_state.last_mileage
@@ -519,35 +524,15 @@ if page == "mileage":
                     st.session_state.log.append(log_entry)
                     st.session_state.last_trip_summary = log_entry
                     st.session_state.pending_changes = True
-                    if confirm_request:
-                        st.markdown(
-                            """
-                            <script>
-                              const url = new URL(window.location.href);
-                              url.searchParams.delete('action');
-                              window.history.replaceState({}, '', url);
-                            </script>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                    # clear inputs after confirm
+                    st.session_state["mileage"] = ""
+                    st.session_state["gallons"] = ""
+                    st.session_state["fuel_cost"] = ""
                     rerun()
             except ZeroDivisionError:
                 st.error("Gallons must be greater than zero.")
         else:
             st.error("Set baseline first.")
-
-    # Floating Action Button (FAB) for quick confirm
-    st.markdown(
-        """
-        <a class=\"fab-add\" href=\"?page=mileage&action=confirm_trip\">➕</a>
-        <style>
-          .fab-add { position:fixed; right: calc(env(safe-area-inset-right) + 1rem); bottom: calc(env(safe-area-inset-bottom) + 4.8rem); width:56px; height:56px; border-radius:9999px; display:flex; align-items:center; justify-content:center; background:#10b981; color:#fff; text-decoration:none; font-size:1.4rem; box-shadow: 0 6px 16px rgba(0,0,0,.25); z-index:10050; }
-          .fab-add:active { transform: translateY(1px); }
-          @media (prefers-color-scheme: dark){ .fab-add { background:#22c55e; } }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
 
     if st.session_state.last_trip_summary:
         e = st.session_state.last_trip_summary
@@ -839,6 +824,9 @@ elif page == "settings":
                     "expenses": [],
                     "earnings": [],
                     "pending_changes": False,
+                    "mileage": "",
+                    "gallons": "",
+                    "fuel_cost": "",
                     "log_edit_expense_index": None,
                     "reset_requested": False,
                 }
