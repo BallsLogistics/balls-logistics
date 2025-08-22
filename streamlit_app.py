@@ -441,7 +441,7 @@ if page == "mileage":
             st.caption(f"Current: **{st.session_state.last_mileage}**")
 
     st.markdown("**Enter Trip Data**")
-
+    st.markdown('<div id="trip-form">', unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3, gap="small")
     with c1:
         odometer_str = st.text_input("Odometer", placeholder="", key="mileage")
@@ -449,6 +449,7 @@ if page == "mileage":
         gallons_str = st.text_input("Gallons", placeholder="", key="gallons")
     with c3:
         fuel_cost_str = st.text_input("Fuel $", placeholder="", key="fuel_cost")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
     # Parse helpers (accepts comma or dot decimals)
@@ -467,21 +468,23 @@ if page == "mileage":
     st.markdown(
         """
         <script>
-          // Ensure numeric keypad for ALL Fuel page inputs
-          const selectors = [
-            'input[aria-label="Odometer"]',
-            'input[aria-label="Gallons"]',
-            'input[aria-label="Fuel $"]',
-            'input[aria-label*="Starting mileage"]', // baseline number_input
-          ];
-          const setNumeric = (el) => {
-            el.setAttribute('inputmode','decimal');
-            el.setAttribute('pattern','[0-9]*');
-            el.setAttribute('autocomplete','off');
-          };
-          selectors.forEach(sel => {
-            document.querySelectorAll(sel).forEach(setNumeric);
-          });
+          (function(){
+            const root = document.getElementById('trip-form');
+            if(!root) return;
+            const setNumeric = () => {
+              root.querySelectorAll('input').forEach((el) => {
+                try { el.type = 'number'; } catch(e) {}
+                el.setAttribute('inputmode','decimal');
+                el.setAttribute('step','any');
+                el.setAttribute('pattern','[0-9]*');
+                el.setAttribute('autocomplete','off');
+                el.setAttribute('enterkeyhint','done');
+              });
+            };
+            setNumeric();
+            // Re-apply after Streamlit rerenders
+            new MutationObserver(setNumeric).observe(root, {subtree:true, childList:true});
+          })();
         </script>
         """,
         unsafe_allow_html=True,
