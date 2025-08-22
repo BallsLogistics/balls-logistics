@@ -51,7 +51,7 @@ st.markdown(
       input[type=number] { appearance: textfield; }
 
       /* Headings smaller */
-      h1 { font-size: 1.38rem; margin:.45rem 0 .35rem; }
+      h1 { font-size: 1.6rem; margin:.45rem 0 .35rem; }
       h2 { font-size: 1.05rem; margin:.45rem 0 .3rem; }
       h3 { font-size: .95rem; margin:.4rem 0 .25rem; }
 
@@ -255,8 +255,6 @@ def render_account_bar(email: str | None):
         f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div><a class="logout-link" href="?logout=1">Logout</a></div>''',
         unsafe_allow_html=True)
 
-
-render_account_bar(st.session_state.user.get('email'))
 
 if st.session_state.get("allow_cookie_fallback"):
     st.caption("Cookie fallback: you'll stay signed in until you close this tab.")
@@ -799,6 +797,8 @@ elif page == "upload":
 # ------------------------- PAGE: Settings -------------------------
 elif page == "settings":
     st.subheader("⚙️ Settings")
+
+    render_account_bar(st.session_state.user.get('email'))
 
     if st.session_state.get("allow_cookie_fallback"):
         if st.button("Try enabling cookies again", use_container_width=True):
