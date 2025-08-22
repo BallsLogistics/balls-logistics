@@ -233,29 +233,24 @@ if st.session_state.user is None:
     st.stop()
 
 # ------------------------- Authenticated -------------------------
-st.success(f"Logged in: {st.session_state.user.get('email')}")
-
-# Quick logout button (mobile top)
+# One-line header: "Logged in:(email)" + Logout
 
 def _logout():
     try:
         _forget_persisted_user_in_browser()
     except Exception:
         pass
-    # Streamlit callbacks auto-rerun; no need to call rerun()
-    st.session_state.user = None
+    st.session_state.user = None  # reruns automatically
 
-
-st.button(
-    "🚪 Logout",
-    key="logout_main",
-    use_container_width=True,
-    on_click=_logout,
-)
-
+row_l, row_r = st.columns([0.7, 0.3], gap="small")
+with row_l:
+    st.markdown(f"Logged in: ({st.session_state.user.get('email')})")
+with row_r:
+    st.button("🚪 Logout", key="logout_main", use_container_width=True, on_click=_logout)
 
 if st.session_state.get("allow_cookie_fallback"):
     st.caption("Cookie fallback: you'll stay signed in until you close this tab.")
+
 
 # ------------------------- Session Init -------------------------
 
