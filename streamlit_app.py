@@ -423,16 +423,32 @@ if page == "mileage":
     st.subheader("📍 Baseline & Trip")
 
     if st.session_state.baseline is None:
-        base = st.number_input("Starting mileage (baseline)", min_value=0.0, step=0.1, placeholder="e.g., 150000")
-        if st.button("✅ Save Baseline", disabled=base <= 0, use_container_width=True):
-            st.session_state.baseline = base
-            st.session_state.last_mileage = base
-            # clear Trip inputs after setting baseline
-            st.session_state["mileage"] = ""
-            st.session_state["gallons"] = ""
-            st.session_state["fuel_cost"] = ""
-            st.session_state.pending_changes = True
-            rerun()
+        # Text input (no +/- steppers). Empty by default. Save automatically on "Done".
+        def _save_baseline_from_input():
+            val = _to_float(st.session_state.get("baseline_input", ""))
+            if val and val > 0:
+                st.session_state.baseline = val
+                st.session_state.last_mileage = val
+                # clear Trip inputs after setting baseline
+                st.session_state["mileage"] = ""
+                st.session_state["gallons"] = ""
+                st.session_state["fuel_cost"] = ""
+                st.session_state.pending_changes = True
+                # clear buffer so the field is blank
+                st.session_state["baseline_input"] = ""
+                rerun()
+
+
+        st.text_input(
+            "Starting mileage (baseline)",
+            key="baseline_input",
+            placeholder="",
+            value=st.session_state.get("baseline_input", ""),
+            on_change=_save_baseline_from_input,
+        )
+        # Optional explicit button for users who prefer tapping a button
+        if st.button("✅ Save Baseline", use_container_width=True):
+            _save_baseline_from_input()
     else:
         c1, c2 = st.columns(2, gap="small")
         with c1:
@@ -469,21 +485,24 @@ if page == "mileage":
         """
         <script>
           (function(){
-            const root = document.getElementById('trip-form');
-            if(!root) return;
-            const setNumeric = () => {
-              root.querySelectorAll('input').forEach((el) => {
-                try { el.type = 'number'; } catch(e) {}
-                el.setAttribute('inputmode','decimal');
-                el.setAttribute('step','any');
-                el.setAttribute('pattern','[0-9]*');
-                el.setAttribute('autocomplete','off');
-                el.setAttribute('enterkeyhint','done');
-              });
+            const applyNumericAttrs = (el) => {
+              try { el.type = 'number'; } catch(e) {}
+              el.setAttribute('inputmode','decimal');
+              el.setAttribute('step','any');
+              el.setAttribute('pattern','[0-9]*');
+              el.setAttribute('autocomplete','off');
+              el.setAttribute('enterkeyhint','done');
             };
-            setNumeric();
-            // Re-apply after Streamlit rerenders
-            new MutationObserver(setNumeric).observe(root, {subtree:true, childList:true});
+            // Baseline field (outside the trip form)
+            const base = document.querySelector('input[aria-label="Starting mileage (baseline)"]');
+            if (base) applyNumericAttrs(base);
+            // Trip form fields
+            const root = document.getElementById('trip-form');
+            if(root){
+              const setNumeric = () => root.querySelectorAll('input').forEach(applyNumericAttrs);
+              setNumeric();
+              new MutationObserver(setNumeric).observe(root, {subtree:true, childList:true});
+            }
           })();
         </script>
         """,
