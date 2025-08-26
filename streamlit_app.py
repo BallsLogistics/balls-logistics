@@ -399,13 +399,19 @@ if page == "mileage":
     # ---- Dashboard (now ONLY on Fuel page, and placed under the nav buttons) ----
     total_exp = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
     total_earn = sum(e.get("owner", 0.0) for e in st.session_state.earnings)
-    net_income = total_earn - total_exp
+
+    # NEW: total fuel expense comes from Expenses where type == "Fuel"
+    total_fuel_expense = sum(
+        e.get("amount", 0.0)
+        for e in st.session_state.expenses
+        if e.get("type") == "Fuel"
+    )
 
     st.markdown(f"""
     <div class="metric-grid">
       <div class="metric"><div class="metric-label">Total Miles</div><div class="metric-value">{st.session_state.total_miles:.2f} mi</div></div>
       <div class="metric"><div class="metric-label">Fuel Used</div><div class="metric-value">{st.session_state.total_gallons:.2f} gal</div></div>
-      <div class="metric"><div class="metric-label">Fuel Cost</div><div class="metric-value">${st.session_state.total_cost:.2f}</div></div>
+      <div class="metric"><div class="metric-label">Fuel Cost</div><div class="metric-value">${total_fuel_expense:.2f}</div></div>   <!-- CHANGED -->
       <div class="metric"><div class="metric-label">Owner Earnings</div><div class="metric-value">${total_earn:.2f}</div></div>
     </div>
     """, unsafe_allow_html=True)
@@ -432,7 +438,6 @@ if page == "mileage":
     if st.session_state.get("clear_trip_inputs"):
         st.session_state["mileage"] = ""
         st.session_state["gallons"] = ""
-        st.session_state["fuel_cost"] = ""
         st.session_state.clear_trip_inputs = False
 
 
@@ -473,13 +478,11 @@ if page == "mileage":
 
     st.markdown("**Enter Trip Data**")
     st.markdown('<div id="trip-form">', unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3, gap="small")
+    c1, c2 = st.columns(2, gap="small")  # CHANGED: two columns
     with c1:
         odometer_str = st.text_input("Odometer", placeholder="", key="mileage")
     with c2:
         gallons_str = st.text_input("Gallons", placeholder="", key="gallons")
-    with c3:
-        fuel_cost_str = st.text_input("Fuel $", placeholder="", key="fuel_cost")
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -493,7 +496,6 @@ if page == "mileage":
 
     new_mileage = _to_float(odometer_str)
     gallons = _to_float(gallons_str)
-    fuel_cost = _to_float(fuel_cost_str)
 
     # Hint iOS to show numeric keypad
     st.markdown(
@@ -531,7 +533,7 @@ if page == "mileage":
 
     # Validate
     is_valid = True
-    if new_mileage is None or gallons is None or fuel_cost is None:
+    if new_mileage is None or gallons is None:
         is_valid = False
     elif st.session_state.baseline is None or st.session_state.last_mileage is None:
         is_valid = False
@@ -549,10 +551,8 @@ if page == "mileage":
                     st.error("Trip distance is zero. Enter a higher odometer value.")
                 else:
                     mpg = distance / gallons if gallons and gallons > 0 else 0
-                    cost_per_mile = fuel_cost / distance if distance > 0 else 0
 
                     st.session_state.total_miles += distance
-                    st.session_state.total_cost += (fuel_cost or 0)
                     st.session_state.total_gallons += (gallons or 0)
                     st.session_state.last_mileage = new_mileage
 
@@ -562,14 +562,15 @@ if page == "mileage":
                         "distance": distance,
                         "gallons": gallons or 0,
                         "mpg": mpg,
-                        "total_cost": fuel_cost or 0,
-                        "cost_per_mile": cost_per_mile,
                         "note": "Mileage + Fuel",
                     }
                     st.session_state.log.append(log_entry)
                     st.session_state.last_trip_summary = log_entry
                     st.session_state.pending_changes = True
-                    # ✅ New safe way
+
+                    # clear inputs after confirm (no fuel_cost anymore)
+                    st.session_state["mileage"] = ""
+                    st.session_state["gallons"] = ""
                     st.session_state.clear_trip_inputs = True
                     rerun()
             except ZeroDivisionError:
@@ -586,19 +587,15 @@ if page == "mileage":
             st.write(f"Gallons: {e['gallons']:.2f} gal")
             st.write(f"MPG: {e['mpg']:.2f}")
         with c2:
-            st.write(f"Fuel $: ${e['total_cost']:.2f}")
-            st.write(f"Cost/mi: ${e['cost_per_mile']:.2f}")
+            st.empty()  # or show another stat if you like
+
         st.markdown("**📈 Overall Since Baseline**")
-        c3, c4, c5 = st.columns(3, gap="small")
+        c3, c4 = st.columns(2, gap="small")
         with c3:
             st.write(f"Miles: {st.session_state.total_miles:.2f}")
         with c4:
             st.write(f"Gallons: {st.session_state.total_gallons:.2f}")
-        with c5:
-            overall_cpm = (
-                st.session_state.total_cost / st.session_state.total_miles if st.session_state.total_miles > 0 else 0
-            )
-            st.write(f"$/mi: ${overall_cpm:.2f}")
+
 
 # ------------------------- PAGE: Expenses -------------------------
 elif page == "expenses":
@@ -933,11 +930,14 @@ elif page == "settings":
         lines.append(f"Current: {st.session_state.last_mileage}")
         lines.append(f"Miles: {st.session_state.total_miles:.2f}")
         lines.append(f"Gallons: {st.session_state.total_gallons:.2f}")
-        lines.append(f"Fuel $: ${st.session_state.total_cost:.2f}")
+        fuel_total = sum(
+            e.get("amount", 0.0)
+            for e in st.session_state.expenses
+            if e.get("type") == "Fuel"
+        )
+        lines.append(f"Fuel $: ${fuel_total:.2f}")  # CHANGED
         if st.session_state.total_gallons > 0:
             lines.append(f"Avg MPG: {st.session_state.total_miles / st.session_state.total_gallons:.2f}")
-        if st.session_state.total_miles > 0:
-            lines.append(f"Avg $/mi: ${st.session_state.total_cost / st.session_state.total_miles:.2f}")
         lines.append("")
         lines.append("Earnings:")
         for e in st.session_state.earnings:
