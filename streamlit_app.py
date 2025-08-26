@@ -6,8 +6,7 @@ from io import StringIO
 import altair as alt
 import pandas as pd
 import streamlit as st
-from firebase_config import auth, db, firebase_app  # uses @st.cache_resource inside
-from streamlit_cookies_manager import EncryptedCookieManager
+
 
 # ------------------------- Page & Global Styles -------------------------
 st.set_page_config(
@@ -16,6 +15,13 @@ st.set_page_config(
     layout="wide",  # use full width; we'll constrain with CSS
     initial_sidebar_state="collapsed",
 )
+# Now it's safe to import things that might use st.*
+from firebase_config import get_firebase_clients     # <-- changed
+from streamlit_cookies_manager import EncryptedCookieManager
+
+# Initialize Firebase clients after page_config is set
+firebase_app, auth, db = get_firebase_clients()
+
 
 st.markdown(
     """
