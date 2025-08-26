@@ -428,6 +428,15 @@ if page == "mileage":
     # ---- Baseline & Trip ----
     st.subheader("📍 Baseline & Trip")
 
+    # ✅ Clear trip inputs safely at the very top of the run
+    if st.session_state.get("clear_trip_inputs"):
+        st.session_state["mileage"] = ""
+        st.session_state["gallons"] = ""
+        st.session_state["fuel_cost"] = ""
+        st.session_state.clear_trip_inputs = False
+
+
+
     if st.session_state.baseline is None:
         # Text input (no +/- steppers). Empty by default. Save automatically on "Done".
         def _save_baseline_from_input():
@@ -560,10 +569,8 @@ if page == "mileage":
                     st.session_state.log.append(log_entry)
                     st.session_state.last_trip_summary = log_entry
                     st.session_state.pending_changes = True
-                    # clear inputs after confirm
-                    st.session_state["mileage"] = ""
-                    st.session_state["gallons"] = ""
-                    st.session_state["fuel_cost"] = ""
+                    # ✅ New safe way
+                    st.session_state.clear_trip_inputs = True
                     rerun()
             except ZeroDivisionError:
                 st.error("Gallons must be greater than zero.")
