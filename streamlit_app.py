@@ -67,6 +67,15 @@ st.markdown(
         .block-container { max-width: 520px; padding:.5rem .5rem 2rem; }
         .stButton button, .stDownloadButton button { padding:.4rem .55rem; font-size:.88rem; }
         .stTextInput input, .stNumberInput input { height: 34px; font-size:.9rem; }
+      /* --- Input focus color override --- */
+      .stTextInput input:focus,
+      .stNumberInput input:focus,
+      .stSelectbox select:focus,
+      .stDateInput input:focus,
+      textarea:focus {
+        border: 1px solid #22c55e !important;   /* green-500 */
+        box-shadow: 0 0 0 1px #22c55e !important;
+        outline: none !important;    
       }
     </style>
     """,
