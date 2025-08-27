@@ -682,11 +682,12 @@ elif page == "expenses":
             )
 
             # compact list: $amount — Category  (optionally include date)
-            for e in entries:
-                amt = float(e.get("amount", 0.0))
-                cat = e.get("type", "Other")
-                dt = e.get("date", "")
-                st.write(f"• ${amt:.2f} — {cat}  {f'({dt})' if dt else ''}")
+            import pandas as pd
+
+            df_recent = pd.DataFrame(entries)[["date", "type", "amount"]]
+            df_recent = df_recent.rename(columns={"type": "Category", "amount": "Amount $"})
+            st.dataframe(df_recent, use_container_width=True, hide_index=True)
+
         else:
             st.caption("No expenses yet.")
 
