@@ -718,7 +718,7 @@ elif page == "earnings":
 
         st.markdown("### 📋 Recent Income")  # ← Title
 
-        # Build display table: Worker | Owner | Owner net | Date
+        # Build display table: Worker's | Owner's gross | Owner's net | Date
         df_recent = df[["worker", "owner", "net_owner", "date"]].copy()
         df_recent = df_recent.rename(columns={
             "worker": "Worker",
@@ -730,10 +730,12 @@ elif page == "earnings":
         # SHOW ONLY TOP 20 (newest first)
         df_recent = df_recent.head(20)
 
-        # Currency formatting (no index)
-        df_recent["Worker"] = df_recent["Worker"].map(lambda x: f"${x:,.2f}")
-        df_recent["Owner"] = df_recent["Owner"].map(lambda x: f"${x:,.2f}")
-        df_recent["Owner net"] = df_recent["Owner net"].map(lambda x: f"${x:,.2f}")
+        # Ensure numeric then format as currency for the three money columns
+        for col in ["Worker", "Owner's gross", "Owner's net"]:
+            df_recent[col] = pd.to_numeric(df_recent[col], errors="coerce").fillna(0.0)
+            df_recent[col] = df_recent[col].map(lambda x: f"${x:,.2f}")
+
+        # Reset index and render without the index column
         df_recent = df_recent.reset_index(drop=True)
         st.table(df_recent.style.hide(axis="index"))
 
@@ -744,7 +746,7 @@ elif page == "earnings":
 
         # Totals (all rows)
         st.caption(
-            f"Totals — Worker: ${df['worker'].sum():.2f} | Owner: ${df['owner'].sum():.2f} | Net: ${df['net_owner'].sum():.2f}"
+            f"Totals — Worker: ${df['worker'].sum():.2f} | Owner's gross: ${df['owner'].sum():.2f} | Owner's net: ${df['net_owner'].sum():.2f}"
         )
     else:
         st.info("No income yet.")
