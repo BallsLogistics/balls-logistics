@@ -679,11 +679,15 @@ elif page == "expenses":
                 key=lambda e: (e.get("date", ""), e.get("id", 0)),
                 reverse=True,
             )
-            df_recent = pd.DataFrame(entries)[["amount", "type", "date"]]  # reorder columns
-            df_recent = df_recent.rename(
-                columns={"amount": "Cost", "type": "Type", "date": "Date"}
-            )
-            st.dataframe(df_recent, use_container_width=True, hide_index=True)
+            df_recent = pd.DataFrame(st.session_state.expenses)[["amount", "type", "date"]]
+            df_recent = df_recent.rename(columns={"amount": "Cost", "type": "Type", "date": "Date"})
+
+            # Force alignment: all left
+            df_recent_styled = df_recent.style.set_properties(**{
+                'text-align': 'left'
+            }).hide(axis="index")  # hide index if you want clean look
+
+            st.dataframe(df_recent_styled, use_container_width=True, height=160)
         else:
             st.caption("No expenses yet.")
 
