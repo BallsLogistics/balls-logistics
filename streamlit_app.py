@@ -407,31 +407,55 @@ page = st.session_state.page
 
 # ------------------------- PAGE: Mileage (Fuel) -------------------------
 if page == "mileage":
-    # ---- Dashboard (now ONLY on Fuel page, and placed under the nav buttons) ----
-    total_exp = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
-    total_earn = sum(e.get("owner", 0.0) for e in st.session_state.earnings)
+    # ---- Dashboard (Fuel page: top tiles) ----
+    # Last-trip gallons
+    last_trip_gallons = 0.0
+    if st.session_state.get("last_trip_summary"):
+        last_trip_gallons = float(st.session_state["last_trip_summary"].get("gallons", 0.0) or 0.0)
 
-    # NEW: total fuel expense comes from Expenses where type == "Fuel"
-    total_fuel_expense = sum(
-        e.get("amount", 0.0)
-        for e in st.session_state.expenses
-        if e.get("type") == "Fuel"
-    )
+    # Most recent Fuel expense (as "last trip's" fuel cost)
+    last_fuel_cost = 0.0
+    if st.session_state.get("expenses"):
+        for _e in sorted(
+                st.session_state.expenses,
+                key=lambda x: (x.get("date", ""), x.get("id", 0)),
+                reverse=True,
+        ):
+            if _e.get("type") == "Fuel":
+                last_fuel_cost = float(_e.get("amount", 0.0) or 0.0)
+                break
+
+    # Owner / Worker totals and Owner's net
+    total_worker_income = sum(float(e.get("worker", 0.0) or 0.0) for e in st.session_state.earnings)
+    total_owner_gross = sum(float(e.get("owner", 0.0) or 0.0) for e in st.session_state.earnings)
+    total_expenses_amt = sum(float(e.get("amount", 0.0) or 0.0) for e in st.session_state.expenses)
+    total_owner_net = total_owner_gross - total_expenses_amt
 
     st.markdown(f"""
     <div class="metric-grid">
       <div class="metric"><div class="metric-label">Total Miles</div><div class="metric-value">{st.session_state.total_miles:.2f} mi</div></div>
-      <div class="metric"><div class="metric-label">Fuel Used</div><div class="metric-value">{st.session_state.total_gallons:.2f} gal</div></div>
-      <div class="metric"><div class="metric-label">Fuel Cost</div><div class="metric-value">${total_fuel_expense:.2f}</div></div>   <!-- CHANGED -->
-      <div class="metric"><div class="metric-label">Owner Earnings</div><div class="metric-value">${total_earn:.2f}</div></div>
+      <div class="metric"><div class="metric-label">Fuel Used (last)</div><div class="metric-value">{last_trip_gallons:.2f} gal</div></div>
+      <div class="metric"><div class="metric-label">Fuel Cost (last)</div><div class="metric-value">${last_fuel_cost:.2f}</div></div>
+      <div class="metric"><div class="metric-label">Owner's gross</div><div class="metric-value">${total_owner_gross:.2f}</div></div>
+      <div class="metric"><div class="metric-label">Worker</div><div class="metric-value">${total_worker_income:.2f}</div></div>
+      <div class="metric"><div class="metric-label">Owner's net</div><div class="metric-value">${total_owner_net:.2f}</div></div>
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown(
         """
         <style>
-          .metric-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:.5rem; }
-          .metric{ border:1px solid var(--border-color, #e5e7eb); border-radius:.6rem; padding:.55rem .7rem; background: var(--metric-bg, #ffffff); }
+          .metric-grid{
+            display:grid;
+            grid-template-columns:repeat(3,1fr);  /* 3 columns now */
+            gap:.5rem;
+          }
+          .metric{
+            border:1px solid var(--border-color, #e5e7eb);
+            border-radius:.6rem;
+            padding:.55rem .7rem;
+            background: var(--metric-bg, #ffffff);
+          }
           .metric-label{ font-size:.78rem; opacity:.75; margin-bottom:.15rem; }
           .metric-value{ font-size:1.05rem; font-weight:600; }
           @media (prefers-color-scheme: dark){
