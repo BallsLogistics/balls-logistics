@@ -578,7 +578,7 @@ elif page == "expenses":
         amount = _to_float(amount_str)
         add_disabled = (amount is None) or (amount < 0)
 
-        if st.button("➕ Add", use_container_width=True, disabled=add_disabled):
+        if st.button("✅ Confirm", use_container_width=True, disabled=add_disabled):
             exp_id = int(datetime.now().timestamp() * 1000)
             exp = {"id": exp_id, "date": today, "type": expense_type,
                    "description": description, "amount": amount or 0.0}
@@ -641,8 +641,9 @@ elif page == "expenses":
             )
         total_expense_amount = float(df_exp.get("amount", pd.Series(dtype=float)).sum())
         st.markdown(f"**Total:** ${total_expense_amount:.2f}")
+
         # --- Recent → Older expense table (Cost / Type / Date) ---
-        st.markdown("### 📋 Recent Expenses")
+        st.markdown("### 📋 Recent Expenses")  # ← Make sure this says “Recent”, not “Resent”
 
         if st.session_state.expenses:
             entries = sorted(
@@ -650,21 +651,23 @@ elif page == "expenses":
                 key=lambda e: (e.get("date", ""), e.get("id", 0)),
                 reverse=True,
             )
+
             df_recent = pd.DataFrame(entries)[["amount", "type", "date"]]
-            df_recent = df_recent.rename(
-                columns={"amount": "Cost", "type": "Type", "date": "Date"}
-            )
+            df_recent = df_recent.rename(columns={"amount": "Cost", "type": "Type", "date": "Date"})
+
+            # SHOW ONLY TOP 20 (newest first)
+            df_recent = df_recent.head(20)
 
             # Format cost column as currency
             df_recent["Cost"] = df_recent["Cost"].map(lambda x: f"${x:,.2f}")
 
-            # Reset index to get rid of 0,1,2...
+            # Reset index to remove 0,1,2...
             df_recent = df_recent.reset_index(drop=True)
 
-            # Show as a static table with NO index
-            st.table(df_recent.style.hide(axis="index"))  # 👈 key line
+            st.table(df_recent.style.hide(axis="index"))
         else:
             st.caption("No expenses yet.")
+
 
 
 
@@ -713,6 +716,8 @@ elif page == "earnings":
         if "net_owner" not in df.columns:
             df["net_owner"] = df["owner"] - total_expenses
 
+        st.markdown("### 📋 Recent Income")  # ← Title
+
         # Build display table: Worker | Owner | Owner net | Date
         df_recent = df[["worker", "owner", "net_owner", "date"]].copy()
         df_recent = df_recent.rename(columns={
@@ -722,6 +727,9 @@ elif page == "earnings":
             "date": "Date",
         })
 
+        # SHOW ONLY TOP 20 (newest first)
+        df_recent = df_recent.head(20)
+
         # Currency formatting (no index)
         df_recent["Worker"] = df_recent["Worker"].map(lambda x: f"${x:,.2f}")
         df_recent["Owner"] = df_recent["Owner"].map(lambda x: f"${x:,.2f}")
@@ -729,17 +737,18 @@ elif page == "earnings":
         df_recent = df_recent.reset_index(drop=True)
         st.table(df_recent.style.hide(axis="index"))
 
-        # CSV (raw numbers, not the formatted strings)
+        # CSV (all rows, raw numbers)
         df_csv = df[["worker", "owner", "net_owner", "date"]]
         csv = df_csv.to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", csv, "income.csv", "text/csv", use_container_width=True)
 
-        # Totals
+        # Totals (all rows)
         st.caption(
             f"Totals — Worker: ${df['worker'].sum():.2f} | Owner: ${df['owner'].sum():.2f} | Net: ${df['net_owner'].sum():.2f}"
         )
     else:
         st.info("No income yet.")
+
 
 
 # ------------------------- PAGE: Log -------------------------
