@@ -732,34 +732,28 @@ elif page == "earnings":
         rerun()
 
     # ----- Chart: Worker vs Owner's net (last 12 months, grouped bars) -----
-    # Build monthly sums from session data
     if st.session_state.earnings:
         inc = pd.DataFrame(st.session_state.earnings).copy()
         exp = pd.DataFrame(st.session_state.expenses).copy() if st.session_state.expenses else pd.DataFrame(
-            columns=["date", "amount"]
-        )
+            columns=["date", "amount"])
 
-        # Parse dates
+        # Parse + coerce
         inc["date"] = pd.to_datetime(inc.get("date"), errors="coerce")
         exp["date"] = pd.to_datetime(exp.get("date"), errors="coerce")
-
-        # Coerce numerics
         inc["worker"] = pd.to_numeric(inc.get("worker", 0.0), errors="coerce").fillna(0.0)
         inc["owner"] = pd.to_numeric(inc.get("owner", 0.0), errors="coerce").fillna(0.0)
         exp["amount"] = pd.to_numeric(exp.get("amount", 0.0), errors="coerce").fillna(0.0)
 
-        # Window = last 12 calendar months (including current month)
+        # Last 12 calendar months (incl current)
         today_ts = pd.Timestamp.today().normalize()
         start_12 = (today_ts - pd.DateOffset(months=11)).replace(day=1)
 
-        # Monthly income sums
+        # Monthly sums
         inc = inc[inc["date"].notna()]
         inc["year_month"] = inc["date"].dt.to_period("M").dt.to_timestamp()
         monthly_worker = inc.groupby("year_month")["worker"].sum()
-
         monthly_owner_gross = inc.groupby("year_month")["owner"].sum()
 
-        # Monthly expenses (ALL expense types)
         if not exp.empty:
             exp = exp[exp["date"].notna()]
             exp["year_month"] = exp["date"].dt.to_period("M").dt.to_timestamp()
@@ -773,14 +767,13 @@ elif page == "earnings":
         monthly["worker"] = monthly_worker.reindex(all_months, fill_value=0.0)
         monthly["owner_gross"] = monthly_owner_gross.reindex(all_months, fill_value=0.0)
         monthly["expenses"] = monthly_expenses.reindex(all_months, fill_value=0.0)
-        monthly["owner_net"] = (monthly["owner_gross"] - monthly["expenses"]).clip(lower=0)
+        monthly["owner_net"] = monthly["owner_gross"] - monthly["expenses"]
 
         monthly = monthly.reset_index().rename(columns={"index": "year_month"})
         monthly["month_label"] = monthly["year_month"].dt.strftime("%b")  # Mar, Apr, ...
-        monthly["is_current"] = (monthly["year_month"].dt.to_period("M") ==
-                                 today_ts.to_period("M"))
+        monthly["is_current"] = (monthly["year_month"].dt.to_period("M") == today_ts.to_period("M"))
 
-        # Melt for grouped bars
+        # Long format for grouped bars
         m = monthly.melt(
             id_vars=["year_month", "month_label", "is_current"],
             value_vars=["worker", "owner_net"],
@@ -789,18 +782,15 @@ elif page == "earnings":
         )
         m["Series"] = m["Series"].map({"worker": "Worker", "owner_net": "Owner's net"})
 
-        # Chart: grouped bars with rounded tops, tooltips, current-month outline
+        # Base encodings
         base = alt.Chart(m).encode(
-            x=alt.X("month_label:N", title=None, axis=alt.Axis(labelAngle=0)),  # keep labels horizontal
+            x=alt.X("month_label:N", title=None, axis=alt.Axis(labelAngle=0)),
             xOffset=alt.XOffset("Series:N"),
             y=alt.Y("Amount:Q", title=None, axis=alt.Axis(format="~s")),
             color=alt.Color(
                 "Series:N",
-                scale=alt.Scale(
-                    domain=["Worker", "Owner's net"],
-                    range=["#39d353", "#333333"],
-                ),
-                legend=alt.Legend(title=None, orient="top"),
+                scale=alt.Scale(domain=["Worker", "Owner's net"], range=["#39d353", "#333333"]),
+                legend=alt.Legend(title=None, orient="top")
             ),
             tooltip=[
                 alt.Tooltip("year_month:T", title="Month", format="%b %Y"),
@@ -809,41 +799,31 @@ elif page == "earnings":
             ],
         )
 
-        bars = base.mark_bar(
-            size=20,
-            cornerRadiusTopLeft=8, cornerRadiusTopRight=8
-        )
+        # Bars
+        bars = base.mark_bar(size=26, cornerRadiusTopLeft=10, cornerRadiusTopRight=10)
 
-        # Slight outline for current month to highlight
+        # Outline current month
         outline = base.transform_filter(alt.datum.is_current == True).mark_bar(
-            size=22,
-            fillOpacity=0,
-            stroke="#6b7280",  # subtle gray outline
-            strokeWidth=1.5,
-            cornerRadiusTopLeft=10, cornerRadiusTopRight=10
+            size=30, fillOpacity=0, stroke="#6b7280", strokeWidth=1.5,
+            cornerRadiusTopLeft=12, cornerRadiusTopRight=12
         )
 
-        # Value labels (only when positive)
-        labels = base.encode(
+        # Value labels: hide zeros, position over each **own** bar using xOffset too
+        labels = (base
+        .transform_filter(alt.datum.Amount > 0)
+        .mark_text(dy=-6, color="#111827")
+        .encode(
             text=alt.Text("Amount:Q", format="$.0f"),
-            y=alt.Y("Amount:Q")
-        ).transform_filter(alt.datum.Amount > 0).mark_text(
-            dy=-6,
-            color="#111827"
+            xOffset=alt.XOffset("Series:N"),
+        )
         )
 
         chart_income_grouped = (bars + outline + labels).properties(
             title="Worker vs Owner’s net — last 12 months",
             height=220,
-        ).configure_axis(
-            grid=False,
-            domain=False
-        ).configure_view(
-            strokeWidth=0
-        )
+        ).configure_axis(grid=False, domain=False).configure_view(strokeWidth=0)
 
         st.altair_chart(chart_income_grouped, use_container_width=True)
-
 
     if st.session_state.earnings:
         # Sort newest first (by date string)
