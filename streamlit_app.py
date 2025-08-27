@@ -444,112 +444,96 @@ if page == "mileage":
 
     # ---- Baseline & Trip ----
     st.subheader("📍 Baseline & Trip")
+
+    # default so names always exist
+    odometer_str = ""
+    gallons_str = ""
+
     if st.session_state.baseline is None:
-        # Text input (no +/- steppers). Empty by default. Save automatically on "Done".
+        # --- Baseline input only ---
         def _save_baseline_from_input():
             val = _to_float(st.session_state.get("baseline_input", ""))
             if val and val > 0:
                 st.session_state.baseline = val
                 st.session_state.last_mileage = val
                 st.session_state.pending_changes = True
-                # clear the baseline input buffer
                 st.session_state["baseline_input"] = ""
-                # rebuild trip inputs blank (no direct writes to widget keys)
                 st.session_state.trip_reset += 1
                 rerun()
 
 
-        st.text_input(
-            "Starting mileage (baseline)",
-            key="baseline_input",
-            placeholder="",
-            value=st.session_state.get("baseline_input", ""),
-            on_change=_save_baseline_from_input,
-        )
-        # Optional explicit button for users who prefer tapping a button
+        st.text_input("Starting mileage (baseline)",
+                      key="baseline_input",
+                      placeholder="",
+                      value=st.session_state.get("baseline_input", ""),
+                      on_change=_save_baseline_from_input)
         if st.button("✅ Save Baseline", use_container_width=True):
             _save_baseline_from_input()
+
     else:
+        # --- Trip inputs + logic ---
         c1, c2 = st.columns(2, gap="small")
         with c1:
             odometer_str = st.text_input("Odometer", placeholder="", key=f"mileage_{st.session_state.trip_reset}")
         with c2:
             gallons_str = st.text_input("Gallons", placeholder="", key=f"gallons_{st.session_state.trip_reset}")
 
+        new_mileage = _to_float(odometer_str)
+        gallons = _to_float(gallons_str)
 
-    new_mileage = _to_float(odometer_str)
-    gallons = _to_float(gallons_str)
+        is_valid = True
+        if new_mileage is None or gallons is None:
+            is_valid = False
+        elif st.session_state.last_mileage is None:
+            is_valid = False
+        elif new_mileage <= (st.session_state.last_mileage or 0):
+            st.warning("Odometer must increase.")
+            is_valid = False
 
-    # Support FAB via query param
-    _action = st.query_params.get("action")
-    if isinstance(_action, (list, tuple)):
-        _action = _action[0] if _action else None
+        confirm_click = st.button("✅ Confirm Trip", disabled=not is_valid, use_container_width=True)
 
-    # Validate
-    is_valid = True
-    if new_mileage is None or gallons is None:
-        is_valid = False
-    elif st.session_state.baseline is None or st.session_state.last_mileage is None:
-        is_valid = False
-    elif new_mileage <= (st.session_state.last_mileage or 0):
-        st.warning("Odometer must increase.")
-        is_valid = False
+        if confirm_click:
+            distance = new_mileage - st.session_state.last_mileage
+            if distance <= 0:
+                st.error("Trip distance is zero. Enter a higher odometer value.")
+            else:
+                mpg = distance / gallons if gallons and gallons > 0 else 0
+                st.session_state.total_miles += distance
+                st.session_state.total_gallons += (gallons or 0)
+                st.session_state.last_mileage = new_mileage
 
-    confirm_click = st.button("✅ Confirm Trip", disabled=not is_valid, use_container_width=True)
+                entry = {
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "type": "Trip",
+                    "distance": distance,
+                    "gallons": gallons or 0,
+                    "mpg": mpg,
+                    "note": "Mileage + Fuel",
+                }
+                st.session_state.log.append(entry)
+                st.session_state.last_trip_summary = entry
+                st.session_state.pending_changes = True
+                st.session_state.trip_reset += 1
+                rerun()
 
-    if confirm_click:
-        if st.session_state.last_mileage is not None:
-            try:
-                distance = new_mileage - st.session_state.last_mileage
-                if distance <= 0:
-                    st.error("Trip distance is zero. Enter a higher odometer value.")
-                else:
-                    mpg = distance / gallons if gallons and gallons > 0 else 0
+        if st.session_state.last_trip_summary:
+            e = st.session_state.last_trip_summary
+            total_mi = float(st.session_state.total_miles or 0)
+            total_gal = float(st.session_state.total_gallons or 0)
+            overall_mpg = (total_mi / total_gal) if total_gal > 0 else 0.0
 
-                    st.session_state.total_miles += distance
-                    st.session_state.total_gallons += (gallons or 0)
-                    st.session_state.last_mileage = new_mileage
+            col1, col2 = st.columns(2, gap="small")
+            with col1:
+                st.markdown("**🧶 Last Trip**")
+                st.write(f"Distance: {e['distance']:.2f} mi")
+                st.write(f"Gallons: {e['gallons']:.2f} gal")
+                st.write(f"MPG: {e['mpg']:.2f}")
+            with col2:
+                st.markdown("**🗂️ All Trips**")
+                st.write(f"Miles: {total_mi:.2f}")
+                st.write(f"Gallons: {total_gal:.2f}")
+                st.write(f"MPG: {overall_mpg:.2f}")
 
-                    log_entry = {
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "type": "Trip",
-                        "distance": distance,
-                        "gallons": gallons or 0,
-                        "mpg": mpg,
-                        "note": "Mileage + Fuel",
-                    }
-                    st.session_state.log.append(log_entry)
-                    st.session_state.last_trip_summary = log_entry
-                    st.session_state.pending_changes = True
-                    st.session_state.trip_reset += 1
-                    rerun()
-            except ZeroDivisionError:
-                st.error("Gallons must be greater than zero.")
-        else:
-            st.error("Set baseline first.")
-
-    if st.session_state.last_trip_summary:
-        e = st.session_state.last_trip_summary
-
-        # Compute All Trips aggregates
-        total_mi = float(st.session_state.total_miles or 0)
-        total_gal = float(st.session_state.total_gallons or 0)
-        overall_mpg = (total_mi / total_gal) if total_gal > 0 else 0.0
-
-        # Two columns: Last Trip (left) and All Trips (right)
-        col1, col2 = st.columns(2, gap="small")
-
-        with col1:
-            st.subheader("🧶 Last Trip")
-            st.write(f"Distance: {e['distance']:.2f} mi")
-            st.write(f"Gallons: {e['gallons']:.2f} gal")
-            st.write(f"MPG: {e['mpg']:.2f}")  # last-trip-specific MPG
-
-        with col2:
-            st.subheader("🗂️ All Trips")
-            st.write(f"Miles: {total_mi:.2f}")
-            st.write(f"Gallons: {total_gal:.2f}")
-            st.write(f"MPG: {overall_mpg:.2f}")  # all-trips MPG
 
 
 # ------------------------- PAGE: Expenses -------------------------
