@@ -804,21 +804,161 @@ elif page == "log":
             st.session_state.pending_changes = True
 
 
+    # Recompute totals and last-trip summary from the current log
+    def _recompute_from_log():
+        trips = [e for e in st.session_state.log if e.get("type") == "Trip"]
+        # totals
+        st.session_state.total_miles = sum(float(t.get("distance", 0.0) or 0.0) for t in trips)
+        st.session_state.total_gallons = sum(float(t.get("gallons", 0.0) or 0.0) for t in trips)
+
+        # last_mileage = baseline + sum(distances) if baseline exists
+        if st.session_state.baseline is not None:
+            try:
+                st.session_state.last_mileage = float(st.session_state.baseline) + float(st.session_state.total_miles)
+            except Exception:
+                st.session_state.last_mileage = None
+        else:
+            st.session_state.last_mileage = None
+
+        # last trip summary → most recent Trip entry (if any)
+        if trips:
+            st.session_state.last_trip_summary = trips[-1]
+        else:
+            st.session_state.last_trip_summary = {}
+
+
     # --- Timeline for Trips & Income (exclude Expenses to avoid duplication) ---
     if st.session_state.log:
         st.markdown("### 🕒 Timeline (Trips & Income)")
-        timeline = [e for e in st.session_state.log if e.get("type") != "Expense"]
-        if timeline:
-            for entry in reversed(timeline):
-                if entry.get("type") == "Trip":
-                    st.write(
-                        f"🕒 {entry['timestamp']} — 🚛 Trip: {entry['distance']:.2f} mi, "
-                        f"{entry['gallons']:.2f} gal, {entry['mpg']:.2f} MPG"
-                    )
 
-                else:
-                    st.write(
-                        f"🕒 {entry['timestamp']} — {entry.get('type')}: ${entry.get('amount', 0.0):.2f} ({entry.get('note', '')})")
+        # Build list with original indexes so we can edit/delete correctly
+        items = [(i, e) for i, e in enumerate(st.session_state.log) if e.get("type") != "Expense"]
+
+        if items:
+            # Iterate newest first
+            for pos, (orig_idx, entry) in enumerate(reversed(items)):
+                etype = entry.get("type")
+
+                # Row label
+                if etype == "Trip":
+                    label = (f"🕒 {entry.get('timestamp', '')} — 🚛 Trip: "
+                             f"{float(entry.get('distance', 0.0)):.2f} mi, "
+                             f"{float(entry.get('gallons', 0.0)):.2f} gal, "
+                             f"{float(entry.get('mpg', 0.0)):.2f} MPG")
+                else:  # Income
+                    label = (f"🕒 {entry.get('timestamp', '')} — 💰 Income: "
+                             f"${float(entry.get('amount', 0.0)):.2f} "
+                             f"({entry.get('note', '')})")
+
+                c1, c2, c3 = st.columns([0.73, 0.135, 0.135], gap="small")
+                with c1:
+                    st.write(label)
+
+                edit_key = f"edit_timeline_{pos}"
+                del_key = f"del_timeline_{pos}"
+                open_key = f"open_editor_{pos}"
+
+                with c2:
+                    if st.button("✏️", key=edit_key):
+                        st.session_state["log_edit_entry_index"] = orig_idx
+                        st.session_state["log_edit_entry_type"] = etype
+                        st.session_state["log_edit_pos_key"] = open_key
+                        st.experimental_rerun()
+                with c3:
+                    if st.button("🗑", key=del_key):
+                        # Delete this entry and recompute derived totals
+                        del st.session_state.log[orig_idx]
+                        _recompute_from_log()
+                        st.session_state.pending_changes = True
+                        st.experimental_rerun()
+
+                # Inline editor under this row if it's the selected one
+                if st.session_state.get("log_edit_entry_index") == orig_idx:
+                    with st.container(border=True):
+                        if etype == "Trip":
+                            # Editable fields
+                            new_distance = st.number_input(
+                                "Distance (mi)", min_value=0.0, step=0.01,
+                                value=float(entry.get("distance", 0.0)),
+                                key=f"{open_key}_dist"
+                            )
+                            new_gallons = st.number_input(
+                                "Gallons", min_value=0.0, step=0.01,
+                                value=float(entry.get("gallons", 0.0)),
+                                key=f"{open_key}_gals"
+                            )
+                            # Recompute MPG (avoid div by zero)
+                            new_mpg = (new_distance / new_gallons) if new_gallons > 0 else 0.0
+                            st.caption(f"MPG will be recalculated to **{new_mpg:.2f}**")
+
+                            cc1, cc2 = st.columns(2, gap="small")
+                            with cc1:
+                                if st.button("💾 Save", key=f"{open_key}_save"):
+                                    entry["distance"] = float(new_distance)
+                                    entry["gallons"] = float(new_gallons)
+                                    entry["mpg"] = float(new_mpg)
+                                    st.session_state.log[orig_idx] = entry
+                                    _recompute_from_log()
+                                    st.session_state["log_edit_entry_index"] = None
+                                    st.session_state["log_edit_entry_type"] = None
+                                    st.session_state.pending_changes = True
+                                    st.experimental_rerun()
+                            with cc2:
+                                if st.button("❌ Cancel", key=f"{open_key}_cancel"):
+                                    st.session_state["log_edit_entry_index"] = None
+                                    st.session_state["log_edit_entry_type"] = None
+                                    st.experimental_rerun()
+
+                        else:  # Income
+                            # You stored Income entries like:
+                            # {"timestamp": "...", "type": "Income", "amount": owner_gross, "note": "Worker $X, Owner Net $Y"}
+                            new_owner = st.number_input(
+                                "Owner's gross $", min_value=0.0, step=0.01,
+                                value=float(entry.get("amount", 0.0)),
+                                key=f"{open_key}_owner"
+                            )
+                            # Extract worker from note (best effort)
+                            note = entry.get("note", "")
+
+
+                            # Try to parse a numeric after "Worker $" if present
+                            def _parse_worker_from_note(s: str) -> float:
+                                try:
+                                    if "Worker $" in s:
+                                        part = s.split("Worker $", 1)[1]
+                                        num = part.split(",", 1)[0].strip()
+                                        return float(num)
+                                except Exception:
+                                    pass
+                                return 0.0
+
+
+                            current_worker = _parse_worker_from_note(note)
+                            new_worker = st.number_input(
+                                "Worker's $", min_value=0.0, step=0.01,
+                                value=float(current_worker),
+                                key=f"{open_key}_worker"
+                            )
+
+                            # Rebuild the note (Owner net is derived elsewhere; keep simple display)
+                            new_note = f"Worker ${new_worker:.2f}"
+
+                            cc1, cc2 = st.columns(2, gap="small")
+                            with cc1:
+                                if st.button("💾 Save", key=f"{open_key}_save_income"):
+                                    entry["amount"] = float(new_owner)
+                                    entry["note"] = new_note
+                                    st.session_state.log[orig_idx] = entry
+                                    # No need to recompute fuel totals; but mark changes for saving
+                                    st.session_state["log_edit_entry_index"] = None
+                                    st.session_state["log_edit_entry_type"] = None
+                                    st.session_state.pending_changes = True
+                                    st.experimental_rerun()
+                            with cc2:
+                                if st.button("❌ Cancel", key=f"{open_key}_cancel_income"):
+                                    st.session_state["log_edit_entry_index"] = None
+                                    st.session_state["log_edit_entry_type"] = None
+                                    st.experimental_rerun()
         else:
             st.caption("No trip/income events yet.")
     else:
@@ -842,6 +982,7 @@ elif page == "log":
             with c3:
                 if st.button("🗑", key=f"log_del_expense_{i}"):
                     _delete_expense_at(idx)
+                    _recompute_from_log()
                     rerun()
 
             # Inline editor under the row
