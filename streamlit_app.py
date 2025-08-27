@@ -582,21 +582,26 @@ if page == "mileage":
 
     if st.session_state.last_trip_summary:
         e = st.session_state.last_trip_summary
-        st.markdown("**🧶 Last Trip**")
-        c1, c2 = st.columns(2, gap="small")
-        with c1:
+
+        # Compute All Trips aggregates
+        total_mi = float(st.session_state.total_miles or 0)
+        total_gal = float(st.session_state.total_gallons or 0)
+        overall_mpg = (total_mi / total_gal) if total_gal > 0 else 0.0
+
+        # Two columns: Last Trip (left) and All Trips (right)
+        col1, col2 = st.columns(2, gap="small")
+
+        with col1:
+            st.markdown("**🧶 Last Trip**")
             st.write(f"Distance: {e['distance']:.2f} mi")
             st.write(f"Gallons: {e['gallons']:.2f} gal")
-            st.write(f"MPG: {e['mpg']:.2f}")
-        with c2:
-            st.empty()  # or show another stat if you like
+            st.write(f"MPG: {e['mpg']:.2f}")  # last-trip-specific MPG
 
-        st.markdown("**📈 Overall Since Baseline**")
-        c3, c4 = st.columns(2, gap="small")
-        with c3:
-            st.write(f"Miles: {st.session_state.total_miles:.2f}")
-        with c4:
-            st.write(f"Gallons: {st.session_state.total_gallons:.2f}")
+        with col2:
+            st.markdown("**🗂️ All Trips**")  # renamed from "Overall Since Baseline"
+            st.write(f"Miles: {total_mi:.2f}")
+            st.write(f"Gallons: {total_gal:.2f}")
+            st.write(f"MPG: {overall_mpg:.2f}")  # all-trips MPG
 
 
 # ------------------------- PAGE: Expenses -------------------------
