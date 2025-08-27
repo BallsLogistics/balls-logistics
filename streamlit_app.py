@@ -30,6 +30,7 @@ st.markdown(
       * { box-sizing: border-box; }
       html, body { max-width: 100%; overflow-x: hidden; touch-action: pan-y; }
       [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data-testid="stToolbar"] { overflow-x: hidden; }
+
       /* Base scale down; tighten paddings; mobile-first tweaks */
       :root { --scale: .90; }
       html, body, [data-testid="stAppViewContainer"] { font-size: calc(16px * var(--scale)); }
@@ -67,20 +68,50 @@ st.markdown(
         .block-container { max-width: 520px; padding:.5rem .5rem 2rem; }
         .stButton button, .stDownloadButton button { padding:.4rem .55rem; font-size:.88rem; }
         .stTextInput input, .stNumberInput input { height: 34px; font-size:.9rem; }
-      /* --- Input focus color override --- */
-      .stTextInput input:focus,
-      .stNumberInput input:focus,
-      .stSelectbox select:focus,
-      .stDateInput input:focus,
-      textarea:focus {
-        border: 1px solid #22c55e !important;   /* green-500 */
+      }
+
+      /* --- Make Streamlit focus green (not red) --- */
+      :root {
+        --primary-color: #22c55e;  /* Tailwind green-500 */
+      }
+
+      /* Inputs focus */
+      .stTextInput > div > div > input:focus,
+      .stNumberInput > div > div > input:focus,
+      .stDateInput  > div > div > input:focus,
+      .stTextArea   textarea:focus {
+        border: 1px solid #22c55e !important;
         box-shadow: 0 0 0 1px #22c55e !important;
-        outline: none !important;    
+        outline: none !important;
+      }
+
+      /* Selectbox focus */
+      .stSelectbox > div:has(div:focus),
+      .stSelectbox > div > div:focus-within {
+        box-shadow: 0 0 0 1px #22c55e !important;
+        border-color: #22c55e !important;
+        outline: none !important;
+      }
+
+      /* Global fallback */
+      *:focus,
+      *:focus-visible {
+        outline: 2px solid #22c55e !important;
+        outline-offset: 0 !important;
+      }
+
+      /* Dataframe focus ring */
+      [data-testid="stDataFrame"]:focus-within,
+      [data-testid="stDataFrame"] div[tabindex]:focus {
+        box-shadow: 0 0 0 2px #22c55e !important;
+        border-color: #22c55e !important;
+        outline: none !important;
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 # --- Account bar styles (email without parentheses + wide Logout) ---
 st.markdown(
