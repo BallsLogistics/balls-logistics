@@ -670,6 +670,26 @@ elif page == "expenses":
             )
         total_expense_amount = float(df_exp.get("amount", pd.Series(dtype=float)).sum())
         st.markdown(f"**Total:** ${total_expense_amount:.2f}")
+        # --- Recent → Older expense list (amount + category) ---
+        st.markdown("### 📋 Recent Expenses")
+
+        if st.session_state.expenses:
+            # sort by date (YYYY-MM-DD) and then by id/timestamp, newest first
+            entries = sorted(
+                st.session_state.expenses,
+                key=lambda e: (e.get("date", ""), e.get("id", 0)),
+                reverse=True,
+            )
+
+            # compact list: $amount — Category  (optionally include date)
+            for e in entries:
+                amt = float(e.get("amount", 0.0))
+                cat = e.get("type", "Other")
+                dt = e.get("date", "")
+                st.write(f"• ${amt:.2f} — {cat}  {f'({dt})' if dt else ''}")
+        else:
+            st.caption("No expenses yet.")
+
     else:
         st.info("No expenses yet.")
 
