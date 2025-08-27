@@ -540,13 +540,13 @@ if page == "mileage":
         col1, col2 = st.columns(2, gap="small")
 
         with col1:
-            st.markdown("**🧶 Last Trip**")
+            st.subheader("🧶 Last Trip")
             st.write(f"Distance: {e['distance']:.2f} mi")
             st.write(f"Gallons: {e['gallons']:.2f} gal")
             st.write(f"MPG: {e['mpg']:.2f}")  # last-trip-specific MPG
 
         with col2:
-            st.markdown("**🗂️ All Trips**")  # renamed from "Overall Since Baseline"
+            st.subheader("🗂️ All Trips")
             st.write(f"Miles: {total_mi:.2f}")
             st.write(f"Gallons: {total_gal:.2f}")
             st.write(f"MPG: {overall_mpg:.2f}")  # all-trips MPG
