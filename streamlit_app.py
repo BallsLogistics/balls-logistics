@@ -736,9 +736,11 @@ elif page == "earnings":
         entries = sorted(st.session_state.earnings, key=lambda e: e.get("date", ""), reverse=True)
         df = pd.DataFrame(entries)
 
-        # Backfill net_owner if older rows don’t have it
-        if "net_owner" not in df.columns:
-            df["net_owner"] = df["owner"] - total_expenses
+        # Always recompute Owner's net using CURRENT total expenses
+        current_total_expenses = sum(float(e.get("amount", 0.0) or 0.0) for e in st.session_state.expenses)
+        df["owner"] = pd.to_numeric(df["owner"], errors="coerce").fillna(0.0)
+        df["worker"] = pd.to_numeric(df["worker"], errors="coerce").fillna(0.0)
+        df["net_owner"] = df["owner"] - float(current_total_expenses)
 
         st.markdown("### 📋 Recent Income")  # ← Title
 
