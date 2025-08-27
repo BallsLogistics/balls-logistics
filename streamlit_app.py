@@ -687,10 +687,14 @@ elif page == "expenses":
             # Format cost column as currency
             df_recent["Cost"] = df_recent["Cost"].map(lambda x: f"${x:,.2f}")
 
-            # Show as a static table (no index, no empty rows)
-            st.table(df_recent)  # <-- instead of st.dataframe
+            # Reset index to get rid of 0,1,2...
+            df_recent = df_recent.reset_index(drop=True)
+
+            # Show as a static table with NO index
+            st.table(df_recent.style.hide(axis="index"))  # 👈 key line
         else:
             st.caption("No expenses yet.")
+
 
 
     else:
