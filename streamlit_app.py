@@ -679,9 +679,9 @@ elif page == "earnings":
     st.subheader("💰 Income")
     c1, c2 = st.columns(2, gap="small")
     with c1:
-        worker_str = st.text_input("Worker $", key=f"earn_worker_str_{st.session_state.earn_reset}", placeholder="")
+        worker_str = st.text_input("Worker's $", key=f"earn_worker_str_{st.session_state.earn_reset}", placeholder="")
     with c2:
-        owner_str = st.text_input("Owner $", key=f"earn_owner_str_{st.session_state.earn_reset}", placeholder="")
+        owner_str = st.text_input("Owner's gross $", key=f"earn_owner_str_{st.session_state.earn_reset}", placeholder="")
 
     worker = _to_float(worker_str)
     owner = _to_float(owner_str)
@@ -722,8 +722,8 @@ elif page == "earnings":
         df_recent = df[["worker", "owner", "net_owner", "date"]].copy()
         df_recent = df_recent.rename(columns={
             "worker": "Worker",
-            "owner": "Owner",
-            "net_owner": "Owner net",
+            "owner": "Owner's gross",
+            "net_owner": "Owner's net",
             "date": "Date",
         })
 
