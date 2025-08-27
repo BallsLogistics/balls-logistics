@@ -867,6 +867,15 @@ elif page == "settings":
 
     render_account_bar(st.session_state.user.get('email'))
 
+    # inside the "settings" page, under render_account_bar(...)
+    if st.button("🔄 Force reload from cloud", use_container_width=True):
+        try:
+            load_data()
+            st.success("Data reloaded from Firebase.")
+            rerun()
+        except Exception as e:
+            st.error(f"Reload failed: {e}")
+
     if st.session_state.get("allow_cookie_fallback"):
         if st.button("Try enabling cookies again", use_container_width=True):
             st.session_state.allow_cookie_fallback = False
