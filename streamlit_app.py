@@ -705,23 +705,42 @@ elif page == "earnings":
         rerun()
 
     if st.session_state.earnings:
-        df = pd.DataFrame(st.session_state.earnings)
+        # Sort newest first (by date string)
+        entries = sorted(st.session_state.earnings, key=lambda e: e.get("date", ""), reverse=True)
+        df = pd.DataFrame(entries)
+
+        # Backfill net_owner if older rows don’t have it
         if "net_owner" not in df.columns:
             df["net_owner"] = df["owner"] - total_expenses
-        st.dataframe(df, use_container_width=True)
 
-        chart = alt.Chart(df).mark_line(point=True).encode(
-            x="date:T", y=alt.Y("net_owner:Q", title="Owner Net"), tooltip=["date", "net_owner"]
-        ).properties(title="Owner Net Over Time", height=160)
-        st.altair_chart(chart, use_container_width=True)
+        # Build display table: Worker | Owner | Owner net | Date
+        df_recent = df[["worker", "owner", "net_owner", "date"]].copy()
+        df_recent = df_recent.rename(columns={
+            "worker": "Worker",
+            "owner": "Owner",
+            "net_owner": "Owner net",
+            "date": "Date",
+        })
 
-        csv = df.to_csv(index=False).encode("utf-8")
+        # Currency formatting (no index)
+        df_recent["Worker"] = df_recent["Worker"].map(lambda x: f"${x:,.2f}")
+        df_recent["Owner"] = df_recent["Owner"].map(lambda x: f"${x:,.2f}")
+        df_recent["Owner net"] = df_recent["Owner net"].map(lambda x: f"${x:,.2f}")
+        df_recent = df_recent.reset_index(drop=True)
+        st.table(df_recent.style.hide(axis="index"))
+
+        # CSV (raw numbers, not the formatted strings)
+        df_csv = df[["worker", "owner", "net_owner", "date"]]
+        csv = df_csv.to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", csv, "income.csv", "text/csv", use_container_width=True)
 
+        # Totals
         st.caption(
-            f"Totals — Worker: ${df['worker'].sum():.2f} | Owner: ${df['owner'].sum():.2f} | Net: ${df['net_owner'].sum():.2f}")
+            f"Totals — Worker: ${df['worker'].sum():.2f} | Owner: ${df['owner'].sum():.2f} | Net: ${df['net_owner'].sum():.2f}"
+        )
     else:
         st.info("No income yet.")
+
 
 # ------------------------- PAGE: Log -------------------------
 elif page == "log":
