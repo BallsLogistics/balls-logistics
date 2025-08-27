@@ -300,6 +300,12 @@ init_session()
 
 
 # ------------------------- Persistence -------------------------
+def _to_float(s: str):
+    try:
+        return float((s or "").replace(",", ".").strip())
+    except Exception:
+        return None
+
 
 def save_data():
     uid = st.session_state.user['localId']
@@ -486,14 +492,6 @@ if page == "mileage":
     with c2:
         gallons_str = st.text_input("Gallons", placeholder="", key="gallons")
     st.markdown('</div>', unsafe_allow_html=True)
-
-
-    # Parse helpers (accepts comma or dot decimals)
-    def _to_float(s: str):
-        try:
-            return float((s or "").replace(",", ".").strip())
-        except Exception:
-            return None
 
 
     new_mileage = _to_float(odometer_str)
@@ -774,8 +772,10 @@ elif page == "log":
             for entry in reversed(timeline):
                 if entry.get("type") == "Trip":
                     st.write(
-                        f"🕒 {entry['timestamp']} — 🚛 Trip: {entry['distance']:.2f} mi, {entry['mpg']:.2f} MPG, ${entry['total_cost']:.2f}, ${entry['cost_per_mile']:.2f}/mi"
+                        f"🕒 {entry['timestamp']} — 🚛 Trip: {entry['distance']:.2f} mi, "
+                        f"{entry['gallons']:.2f} gal, {entry['mpg']:.2f} MPG"
                     )
+
                 else:
                     st.write(
                         f"🕒 {entry['timestamp']} — {entry.get('type')}: ${entry.get('amount', 0.0):.2f} ({entry.get('note', '')})")
