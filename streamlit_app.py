@@ -674,20 +674,19 @@ elif page == "expenses":
         st.markdown("### 📋 Recent Expenses")
 
         if st.session_state.expenses:
-            entries = sorted(
-                st.session_state.expenses,
-                key=lambda e: (e.get("date", ""), e.get("id", 0)),
-                reverse=True,
-            )
             df_recent = pd.DataFrame(st.session_state.expenses)[["amount", "type", "date"]]
             df_recent = df_recent.rename(columns={"amount": "Cost", "type": "Type", "date": "Date"})
 
-            # Force alignment: all left
-            df_recent_styled = df_recent.style.set_properties(**{
-                'text-align': 'left'
-            }).hide(axis="index")  # hide index if you want clean look
+            # Format cost with 2 decimals (or no decimals if you prefer integers)
+            df_recent["Cost"] = df_recent["Cost"].map(lambda x: f"${x:,.2f}")
 
-            st.dataframe(df_recent_styled, use_container_width=True, height=160)
+            # Show table without index, aligned consistently
+            st.markdown("### 🧾 Recent Expenses")
+            st.dataframe(
+                df_recent.style.set_properties(**{'text-align': 'left'}).hide(axis="index"),
+                use_container_width=True,
+                height=160
+            )
         else:
             st.caption("No expenses yet.")
 
