@@ -731,6 +731,79 @@ elif page == "earnings":
         st.session_state.earn_reset += 1
         rerun()
 
+        # ----- Charts: Worker vs Owner's net (last 12 months) -----
+        if st.session_state.earnings:
+            df_income = pd.DataFrame(st.session_state.earnings).copy()
+
+            # Make sure columns exist & are numeric
+            df_income["worker"] = pd.to_numeric(df_income.get("worker", 0.0), errors="coerce").fillna(0.0)
+            df_income["owner"] = pd.to_numeric(df_income.get("owner", 0.0), errors="coerce").fillna(0.0)
+
+            # Prefer stored per-entry net_owner (most accurate historically).
+            # If a row is missing it, fallback to 0 (or owner if you prefer).
+            df_income["net_owner"] = pd.to_numeric(df_income.get("net_owner", 0.0), errors="coerce").fillna(0.0)
+
+            # Dates
+            df_income["date"] = pd.to_datetime(df_income.get("date"), errors="coerce")
+
+            # Last 12 months window (including current month)
+            today = pd.Timestamp.today().normalize()
+            start_12 = (today - pd.DateOffset(months=11)).replace(day=1)
+
+            df_12 = df_income[df_income["date"] >= start_12].copy()
+            df_12["year_month"] = df_12["date"].dt.to_period("M").dt.to_timestamp()
+
+            # Monthly sums for Worker and Owner's net
+            monthly = (
+                df_12.groupby("year_month")[["worker", "net_owner"]]
+                .sum()
+                .reset_index()
+            )
+
+            # Ensure all months exist, even if 0
+            all_months = pd.date_range(start=start_12, end=today, freq="MS")
+            monthly = (
+                monthly.set_index("year_month")
+                .reindex(all_months, fill_value=0.0)
+                .rename_axis("year_month")
+                .reset_index()
+            )
+            monthly["month_label"] = monthly["year_month"].dt.strftime("%Y-%m")
+
+            # Melt for stacked bar
+            m = monthly.melt(
+                id_vars=["month_label"],
+                value_vars=["worker", "net_owner"],
+                var_name="Role",
+                value_name="Amount",
+            )
+            m["Role"] = m["Role"].map({
+                "worker": "Worker",
+                "net_owner": "Owner's net",
+            })
+
+            # Stacked bar chart
+            chart_income_stacked = (
+                alt.Chart(m)
+                .mark_bar()
+                .encode(
+                    x=alt.X("month_label:N", title="Month"),
+                    y=alt.Y("Amount:Q", title="$"),
+                    color=alt.Color("Role:N", legend=alt.Legend(title="")),
+                    tooltip=[
+                        alt.Tooltip("month_label:N", title="Month"),
+                        alt.Tooltip("Role:N"),
+                        alt.Tooltip("Amount:Q", title="Amount", format="$.2f"),
+                    ],
+                )
+                .properties(
+                    title="Worker vs Owner's net — last 12 months",
+                    height=220,
+                )
+            )
+
+            st.altair_chart(chart_income_stacked, use_container_width=True)
+
     if st.session_state.earnings:
         # Sort newest first (by date string)
         entries = sorted(st.session_state.earnings, key=lambda e: e.get("date", ""), reverse=True)
