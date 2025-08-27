@@ -730,10 +730,11 @@ elif page == "earnings":
         # SHOW ONLY TOP 20 (newest first)
         df_recent = df_recent.head(20)
 
-        # Ensure numeric then format as currency for the three money columns
+        # Ensure numeric then format as currency for the three money columns (guarded)
         for col in ["Worker", "Owner's gross", "Owner's net"]:
-            df_recent[col] = pd.to_numeric(df_recent[col], errors="coerce").fillna(0.0)
-            df_recent[col] = df_recent[col].map(lambda x: f"${x:,.2f}")
+            if col in df_recent.columns:
+                df_recent[col] = pd.to_numeric(df_recent[col], errors="coerce").fillna(0.0)
+                df_recent[col] = df_recent[col].map(lambda x: f"${x:,.2f}")
 
         # Reset index and render without the index column
         df_recent = df_recent.reset_index(drop=True)
