@@ -470,12 +470,33 @@ if page == "mileage":
         if st.button("✅ Save Baseline", use_container_width=True):
             _save_baseline_from_input()
 
+
     else:
-        # --- Trip inputs + logic ---
+
+        # --- Show Baseline & Current odometer ---
+
+        bc1, bc2 = st.columns(2, gap="small")
+
+        with bc1:
+
+            st.caption(f"Baseline: **{st.session_state.baseline:,.2f}**")
+
+        with bc2:
+
+            cur = st.session_state.last_mileage
+
+            st.caption(f"Current: **{(cur if cur is not None else 0):,.2f}**")
+
+        # --- Trip inputs ---
+
         c1, c2 = st.columns(2, gap="small")
+
         with c1:
+
             odometer_str = st.text_input("Odometer", placeholder="", key=f"mileage_{st.session_state.trip_reset}")
+
         with c2:
+
             gallons_str = st.text_input("Gallons", placeholder="", key=f"gallons_{st.session_state.trip_reset}")
 
         new_mileage = _to_float(odometer_str)
