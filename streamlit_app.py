@@ -499,35 +499,6 @@ if page == "mileage":
     new_mileage = _to_float(odometer_str)
     gallons = _to_float(gallons_str)
 
-    # Hint iOS to show numeric keypad
-    st.markdown(
-        """
-        <script>
-          (function(){
-            const applyNumericAttrs = (el) => {
-              try { el.type = 'number'; } catch(e) {}
-              el.setAttribute('inputmode','decimal');
-              el.setAttribute('step','any');
-              el.setAttribute('pattern','[0-9]*');
-              el.setAttribute('autocomplete','off');
-              el.setAttribute('enterkeyhint','done');
-            };
-            // Baseline field (outside the trip form)
-            const base = document.querySelector('input[aria-label="Starting mileage (baseline)"]');
-            if (base) applyNumericAttrs(base);
-            // Trip form fields
-            const root = document.getElementById('trip-form');
-            if(root){
-              const setNumeric = () => root.querySelectorAll('input').forEach(applyNumericAttrs);
-              setNumeric();
-              new MutationObserver(setNumeric).observe(root, {subtree:true, childList:true});
-            }
-          })();
-        </script>
-        """,
-        unsafe_allow_html=True,
-    )
-
     # Support FAB via query param
     _action = st.query_params.get("action")
     if isinstance(_action, (list, tuple)):
@@ -616,20 +587,30 @@ elif page == "expenses":
         c1, c2 = st.columns([.6, .4], gap="small")
         with c1:
             expense_type = st.selectbox("Type", options, index=0, key="new_expense_type")
-            description = st.text_input("Description", key="new_expense_description")
+            description = st.text_input("Description", key="new_expense_description", placeholder="")
         with c2:
-            amount = st.number_input("Amount $", min_value=0.0, step=0.01, key="new_expense_amount")
-            if st.button("➕ Add", use_container_width=True):
-                # create stable id for expense
-                exp_id = int(datetime.now().timestamp() * 1000)
-                exp = {"id": exp_id, "date": today, "type": expense_type, "description": description, "amount": amount}
-                st.session_state.expenses.append(exp)
-                st.session_state.log.append({
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "type": "Expense", "amount": amount, "note": f"{expense_type}: {description}", "expense_id": exp_id
-                })
-                st.session_state.pending_changes = True
-                rerun()
+            amount_str = st.text_input("Amount $", key="new_expense_amount_str", placeholder="")
+
+        # parse & validate like Fuel page
+        amount = _to_float(amount_str)
+        add_disabled = (amount is None) or (amount < 0)
+
+        if st.button("➕ Add", use_container_width=True, disabled=add_disabled):
+            exp_id = int(datetime.now().timestamp() * 1000)
+            exp = {"id": exp_id, "date": today, "type": expense_type,
+                   "description": description, "amount": amount or 0.0}
+            st.session_state.expenses.append(exp)
+            st.session_state.log.append({
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "type": "Expense", "amount": amount or 0.0,
+                "note": f"{expense_type}: {description}", "expense_id": exp_id
+            })
+            st.session_state.pending_changes = True
+            # clear inputs like Fuel page
+            st.session_state["new_expense_description"] = ""
+            st.session_state["new_expense_amount_str"] = ""
+            rerun()
+
     else:
         # If user navigated here while editing (e.g., started from Log)
         idx = st.session_state.edit_expense_index
@@ -712,22 +693,34 @@ elif page == "earnings":
     st.subheader("💰 Income")
     c1, c2 = st.columns(2, gap="small")
     with c1:
-        worker = st.number_input("Worker $", min_value=0.0, step=0.01)
+        worker_str = st.text_input("Worker $", key="earn_worker_str", placeholder="")
     with c2:
-        owner = st.number_input("Owner $", min_value=0.0, step=0.01)
+        owner_str = st.text_input("Owner $", key="earn_owner_str", placeholder="")
+
+    worker = _to_float(worker_str)
+    owner = _to_float(owner_str)
 
     today = datetime.now().strftime("%Y-%m-%d")
     total_expenses = sum(e.get("amount", 0.0) for e in st.session_state.expenses)
-    owner_net = owner - total_expenses
+    owner_net = (owner or 0.0) - total_expenses
 
-    if st.button("✅ Confirm", use_container_width=True):
-        earning = {"date": today, "worker": worker, "owner": owner, "net_owner": owner_net}
+    confirm_disabled = (
+            worker is None or owner is None or worker < 0 or owner < 0
+    )
+
+    if st.button("✅ Confirm", use_container_width=True, disabled=confirm_disabled):
+        earning = {"date": today, "worker": worker or 0.0, "owner": owner or 0.0, "net_owner": owner_net}
         st.session_state.earnings.append(earning)
         st.session_state.log.append({
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "type": "Income", "amount": owner, "note": f"Worker ${worker:.2f}, Owner Net ${owner_net:.2f}"
+            "type": "Income",
+            "amount": owner or 0.0,
+            "note": f"Worker ${(worker or 0.0):.2f}, Owner Net ${owner_net:.2f}",
         })
         st.session_state.pending_changes = True
+        # clear inputs like Fuel page
+        st.session_state["earn_worker_str"] = ""
+        st.session_state["earn_owner_str"] = ""
         rerun()
 
     if st.session_state.earnings:
