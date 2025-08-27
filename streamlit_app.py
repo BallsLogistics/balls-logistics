@@ -451,13 +451,11 @@ if page == "mileage":
             if val and val > 0:
                 st.session_state.baseline = val
                 st.session_state.last_mileage = val
-                # clear Trip inputs after setting baseline
-                st.session_state["mileage"] = ""
-                st.session_state["gallons"] = ""
-                st.session_state["fuel_cost"] = ""
                 st.session_state.pending_changes = True
-                # clear buffer so the field is blank
+                # clear the baseline input buffer
                 st.session_state["baseline_input"] = ""
+                # rebuild trip inputs blank (no direct writes to widget keys)
+                st.session_state.trip_reset += 1
                 rerun()
 
 
@@ -477,14 +475,6 @@ if page == "mileage":
             odometer_str = st.text_input("Odometer", placeholder="", key=f"mileage_{st.session_state.trip_reset}")
         with c2:
             gallons_str = st.text_input("Gallons", placeholder="", key=f"gallons_{st.session_state.trip_reset}")
-    st.markdown("**Enter Trip Data**")
-    st.markdown('<div id="trip-form">', unsafe_allow_html=True)
-    c1, c2 = st.columns(2, gap="small")  # CHANGED: two columns
-    with c1:
-        odometer_str = st.text_input("Odometer", placeholder="", key="mileage")
-    with c2:
-        gallons_str = st.text_input("Gallons", placeholder="", key="gallons")
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
     new_mileage = _to_float(odometer_str)
@@ -531,6 +521,7 @@ if page == "mileage":
                     st.session_state.log.append(log_entry)
                     st.session_state.last_trip_summary = log_entry
                     st.session_state.pending_changes = True
+                    st.session_state.trip_reset += 1
                     rerun()
             except ZeroDivisionError:
                 st.error("Gallons must be greater than zero.")
@@ -594,7 +585,7 @@ elif page == "expenses":
             })
             st.session_state.pending_changes = True
             # clear inputs like Fuel page
-            st.session_state.trip_reset += 1  # rebuilds inputs blank
+            st.session_state.exp_reset += 1  # rebuilds inputs blank
             rerun()
 
 
@@ -678,6 +669,7 @@ elif page == "expenses":
 # ------------------------- PAGE: Earnings -------------------------
 elif page == "earnings":
     st.subheader("💰 Income")
+    c1, c2 = st.columns(2, gap="small")
     with c1:
         worker_str = st.text_input("Worker $", key=f"earn_worker_str_{st.session_state.earn_reset}", placeholder="")
     with c2:
