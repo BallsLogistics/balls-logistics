@@ -272,6 +272,9 @@ if st.session_state.get("allow_cookie_fallback"):
 
 def init_session():
     defaults = {
+        "trip_reset": 0,
+        "exp_reset": 0,
+        "earn_reset": 0,
         "edit_expense_index": None,
         "baseline": None,
         "log": [],
@@ -302,7 +305,7 @@ init_session()
 # ------------------------- Persistence -------------------------
 def _to_float(s: str):
     try:
-        return float((s or "").replace(",", ".").strip())
+        return float(str(s or "").replace(",", ".").strip())
     except Exception:
         return None
 
@@ -441,15 +444,6 @@ if page == "mileage":
 
     # ---- Baseline & Trip ----
     st.subheader("📍 Baseline & Trip")
-
-    # ✅ Clear trip inputs safely at the very top of the run
-    if st.session_state.get("clear_trip_inputs"):
-        st.session_state["mileage"] = ""
-        st.session_state["gallons"] = ""
-        st.session_state.clear_trip_inputs = False
-
-
-
     if st.session_state.baseline is None:
         # Text input (no +/- steppers). Empty by default. Save automatically on "Done".
         def _save_baseline_from_input():
@@ -480,10 +474,9 @@ if page == "mileage":
     else:
         c1, c2 = st.columns(2, gap="small")
         with c1:
-            st.caption(f"Baseline: **{st.session_state.baseline}**")
+            odometer_str = st.text_input("Odometer", placeholder="", key=f"mileage_{st.session_state.trip_reset}")
         with c2:
-            st.caption(f"Current: **{st.session_state.last_mileage}**")
-
+            gallons_str = st.text_input("Gallons", placeholder="", key=f"gallons_{st.session_state.trip_reset}")
     st.markdown("**Enter Trip Data**")
     st.markdown('<div id="trip-form">', unsafe_allow_html=True)
     c1, c2 = st.columns(2, gap="small")  # CHANGED: two columns
@@ -538,11 +531,6 @@ if page == "mileage":
                     st.session_state.log.append(log_entry)
                     st.session_state.last_trip_summary = log_entry
                     st.session_state.pending_changes = True
-
-                    # clear inputs after confirm (no fuel_cost anymore)
-                    st.session_state["mileage"] = ""
-                    st.session_state["gallons"] = ""
-                    st.session_state.clear_trip_inputs = True
                     rerun()
             except ZeroDivisionError:
                 st.error("Gallons must be greater than zero.")
@@ -585,10 +573,11 @@ elif page == "expenses":
         c1, c2 = st.columns([.6, .4], gap="small")
         with c1:
             expense_type = st.selectbox("Type", options, index=0, key="new_expense_type")
-            description = st.text_input("Description", key="new_expense_description", placeholder="")
+            description = st.text_input("Description", key=f"new_expense_description_{st.session_state.exp_reset}",
+                                        placeholder="")
         with c2:
-            amount_str = st.text_input("Amount $", key="new_expense_amount_str", placeholder="")
-
+            amount_str = st.text_input("Amount $", key=f"new_expense_amount_str_{st.session_state.exp_reset}",
+                                       placeholder="")
         # parse & validate like Fuel page
         amount = _to_float(amount_str)
         add_disabled = (amount is None) or (amount < 0)
@@ -605,9 +594,9 @@ elif page == "expenses":
             })
             st.session_state.pending_changes = True
             # clear inputs like Fuel page
-            st.session_state["new_expense_description"] = ""
-            st.session_state["new_expense_amount_str"] = ""
+            st.session_state.trip_reset += 1  # rebuilds inputs blank
             rerun()
+
 
     else:
         # If user navigated here while editing (e.g., started from Log)
@@ -689,11 +678,10 @@ elif page == "expenses":
 # ------------------------- PAGE: Earnings -------------------------
 elif page == "earnings":
     st.subheader("💰 Income")
-    c1, c2 = st.columns(2, gap="small")
     with c1:
-        worker_str = st.text_input("Worker $", key="earn_worker_str", placeholder="")
+        worker_str = st.text_input("Worker $", key=f"earn_worker_str_{st.session_state.earn_reset}", placeholder="")
     with c2:
-        owner_str = st.text_input("Owner $", key="earn_owner_str", placeholder="")
+        owner_str = st.text_input("Owner $", key=f"earn_owner_str_{st.session_state.earn_reset}", placeholder="")
 
     worker = _to_float(worker_str)
     owner = _to_float(owner_str)
@@ -716,9 +704,7 @@ elif page == "earnings":
             "note": f"Worker ${(worker or 0.0):.2f}, Owner Net ${owner_net:.2f}",
         })
         st.session_state.pending_changes = True
-        # clear inputs like Fuel page
-        st.session_state["earn_worker_str"] = ""
-        st.session_state["earn_owner_str"] = ""
+        st.session_state.earn_reset += 1
         rerun()
 
     if st.session_state.earnings:
