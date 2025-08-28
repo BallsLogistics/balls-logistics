@@ -837,7 +837,7 @@ elif page == "earnings":
             ),
             tooltip=[
                 alt.Tooltip("year_month:T", title="Month", format="%b %Y"),
-                alt.Tooltip("Series:N", title=""),
+                alt.Tooltip("Series:N", title="Who"),
                 alt.Tooltip("Amount:Q", title="Amount", format="$.2f"),
             ],
         )
