@@ -732,46 +732,64 @@ elif page == "earnings":
         st.session_state.earn_reset += 1
         rerun()
 
-    # ----- Chart: Worker vs Owner's net (last 7 months, grouped bars) -----
+    # ----- Chart: Worker vs Owner's net (last 7 months, grouped bars, screenshot style + left-pack) -----
     if st.session_state.earnings:
         inc = pd.DataFrame(st.session_state.earnings).copy()
         exp = pd.DataFrame(st.session_state.expenses).copy() if st.session_state.expenses else pd.DataFrame(
             columns=["date", "amount"]
         )
 
-        # Parse + coerce
+        # Parse & coerce
         inc["date"] = pd.to_datetime(inc.get("date"), errors="coerce")
         exp["date"] = pd.to_datetime(exp.get("date"), errors="coerce")
         inc["worker"] = pd.to_numeric(inc.get("worker", 0.0), errors="coerce").fillna(0.0)
         inc["owner"] = pd.to_numeric(inc.get("owner", 0.0), errors="coerce").fillna(0.0)
         exp["amount"] = pd.to_numeric(exp.get("amount", 0.0), errors="coerce").fillna(0.0)
 
-        # Last 7 calendar months (incl current)
+        # 7-month window (including current)
         today_ts = pd.Timestamp.today().normalize()
         start_7 = (today_ts - pd.DateOffset(months=6)).replace(day=1)
+        all_months_full = pd.date_range(start=start_7, end=today_ts, freq="MS")  # exactly 7 ticks
 
         # Monthly sums
-        inc = inc[inc["date"].notna()]
+        inc = inc[inc["date"].notna()].copy()
         inc["year_month"] = inc["date"].dt.to_period("M").dt.to_timestamp()
         monthly_worker = inc.groupby("year_month")["worker"].sum()
         monthly_owner_gross = inc.groupby("year_month")["owner"].sum()
 
         if not exp.empty:
-            exp = exp[exp["date"].notna()]
+            exp = exp[exp["date"].notna()].copy()
             exp["year_month"] = exp["date"].dt.to_period("M").dt.to_timestamp()
             monthly_expenses = exp.groupby("year_month")["amount"].sum()
         else:
             monthly_expenses = pd.Series(dtype=float)
 
-        # Ensure every month exists (7 only)
-        all_months = pd.date_range(start=start_7, end=today_ts, freq="MS")
-        monthly = pd.DataFrame(index=all_months)
-        monthly["worker"] = monthly_worker.reindex(all_months, fill_value=0.0)
-        monthly["owner_gross"] = monthly_owner_gross.reindex(all_months, fill_value=0.0)
-        monthly["expenses"] = monthly_expenses.reindex(all_months, fill_value=0.0)
-        monthly["owner_net"] = monthly["owner_gross"] - monthly["expenses"]
+        # Build monthly frame for the full 7-month window first
+        monthly_full = pd.DataFrame(index=all_months_full)
+        monthly_full["worker"] = monthly_worker.reindex(all_months_full, fill_value=0.0)
+        monthly_full["owner_gross"] = monthly_owner_gross.reindex(all_months_full, fill_value=0.0)
+        monthly_full["expenses"] = monthly_expenses.reindex(all_months_full, fill_value=0.0)
+        monthly_full["owner_net"] = (monthly_full["owner_gross"] - monthly_full["expenses"]).clip(lower=0)
 
-        monthly = monthly.reset_index().rename(columns={"index": "year_month"})
+        # ---- Left-pack logic: if early months are all zero, shift the visible domain so the first non-zero month is leftmost
+        nonzero_mask = (monthly_full["worker"] > 0) | (monthly_full["owner_net"] > 0)
+        if nonzero_mask.any():
+            first_idx = int(nonzero_mask.idxmax() == False)  # idxmax trick doesn't apply well; do manual find below
+            # manual find:
+            first_nonzero_pos = None
+            for i, m in enumerate(all_months_full):
+                if (monthly_full.loc[m, ["worker", "owner_net"]] > 0).any():
+                    first_nonzero_pos = i
+                    break
+            if first_nonzero_pos is not None and first_nonzero_pos > 0:
+                domain_months = all_months_full[first_nonzero_pos:]
+            else:
+                domain_months = all_months_full
+        else:
+            domain_months = all_months_full
+
+        # Keep data only for domain months (so we don’t plot hidden months)
+        monthly = monthly_full.loc[domain_months].copy().reset_index().rename(columns={"index": "year_month"})
         monthly["is_current"] = (monthly["year_month"].dt.to_period("M") == today_ts.to_period("M"))
 
         # Long format for grouped bars
@@ -782,27 +800,29 @@ elif page == "earnings":
             value_name="Amount",
         )
         m["Series"] = m["Series"].map({"worker": "Worker", "owner_net": "Owner's net"})
+        m["month_tick"] = m["year_month"]
+        m["label_color"] = m["Series"].map({"Worker": "#16a34a", "Owner's net": "#111827"})  # match screenshot
 
-        # Chronological domain for x-axis (7 months only)
-        domain_months = list(all_months.to_pydatetime())
-
+        # Base chart — bars centered over months, chronological order guaranteed by domain
         base = alt.Chart(m).encode(
             x=alt.X(
-                "yearmonth(year_month):T",
+                "yearmonth(month_tick):T",
                 title=None,
                 axis=alt.Axis(labelAngle=0, format="%b"),
-                # center the bands and give breathing room
                 scale=alt.Scale(
-                    domain=domain_months,
-                    paddingInner=0.6,  # space between month bands
-                    paddingOuter=0.5  # space on left/right edges
+                    domain=list(domain_months.to_pydatetime()),
+                    paddingInner=0.65,
+                    paddingOuter=0.45
                 ),
             ),
             xOffset=alt.XOffset("Series:N"),
             y=alt.Y("Amount:Q", title=None, axis=alt.Axis(format="~s")),
             color=alt.Color(
                 "Series:N",
-                scale=alt.Scale(domain=["Worker", "Owner's net"], range=["#39d353", "#333333"]),
+                scale=alt.Scale(
+                    domain=["Worker", "Owner's net"],
+                    range=["#22c55e", "#111827"],  # green & dark
+                ),
                 legend=alt.Legend(title=None, orient="top"),
             ),
             tooltip=[
@@ -812,29 +832,30 @@ elif page == "earnings":
             ],
         )
 
-        # Bars (slightly narrower so the pair sits centered inside each month)
+        # Bars (rounded + subtle outline)
         bars = base.mark_bar(
-            size=18,  # was 26
-            cornerRadiusTopLeft=10,
-            cornerRadiusTopRight=10
-        )
-
-        # Outline current month (match bar width + a touch)
-        outline = base.transform_filter(alt.datum.is_current == True).mark_bar(
-            size=22,  # was 30
-            fillOpacity=0,
-            stroke="#6b7280",
-            strokeWidth=1.5,
+            size=20,
             cornerRadiusTopLeft=12,
-            cornerRadiusTopRight=12
+            cornerRadiusTopRight=12,
+            stroke="#cbd5e1",
+            strokeWidth=1.5,
         )
 
-        # Value labels (hide zeros)
+        # Highlight current month with a slightly wider outline
+        outline = base.transform_filter(alt.datum.is_current == True).mark_bar(
+            size=24, fillOpacity=0, stroke="#9ca3af", strokeWidth=1.5,
+            cornerRadiusTopLeft=14, cornerRadiusTopRight=14
+        )
+
+        # Value labels (big, no decimals) colored like their bar
         labels = (
             base.transform_filter(alt.datum.Amount > 0)
-            .mark_text(dy=-6, color="#111827")
-            .encode(text=alt.Text("Amount:Q", format="$.0f"),
-                    xOffset=alt.XOffset("Series:N"))
+            .mark_text(dy=-8)
+            .encode(
+                text=alt.Text("Amount:Q", format="$,.0f"),
+                color=alt.Color("label_color:N", scale=None),
+                xOffset=alt.XOffset("Series:N"),
+            )
         )
 
         chart_income_grouped = (bars + outline + labels).properties(
