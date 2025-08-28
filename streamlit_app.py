@@ -102,27 +102,33 @@ def rerun():
 
 
 # ------------------------- Cookie Manager -------------------------
-cookies = EncryptedCookieManager(prefix="bl_", password=st.secrets["cookie_password"])
 if "allow_cookie_fallback" not in st.session_state:
     st.session_state.allow_cookie_fallback = False
 
-if not cookies.ready() and not st.session_state.allow_cookie_fallback:
-    st.info("iOS may block cookies in Private Mode. Continue without cookies or retry.")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🔁 Retry cookies"):
-            rerun()
-    with c2:
-        if st.button("➡️ Continue (no cookies)"):
-            st.session_state.allow_cookie_fallback = True
-            rerun()
-    st.stop()
+cookies = None  # only create the component if we're not in fallback mode
+if not st.session_state.get("allow_cookie_fallback", False):
+    from streamlit_cookies_manager import EncryptedCookieManager
+    cookies = EncryptedCookieManager(prefix="bl_", password=st.secrets["cookie_password"])
+
+    # If the component can't load (Safari Private Mode, tracking disabled, etc.)
+    if not cookies.ready():
+        st.info("iOS may block cookies in Private Mode. Continue without cookies or retry.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🔁 Retry cookies"):
+                rerun()
+        with c2:
+            if st.button("➡️ Continue (no cookies)"):
+                st.session_state.allow_cookie_fallback = True
+                rerun()
+        st.stop()
 
 COOKIE_KEY = "auth"
 
 
+
 def _persist_user_to_browser(user_dict: dict):
-    if st.session_state.get("allow_cookie_fallback"):
+    if st.session_state.get("allow_cookie_fallback") or cookies is None:
         return
     payload = {
         "refreshToken": user_dict.get("refreshToken"),
@@ -132,9 +138,8 @@ def _persist_user_to_browser(user_dict: dict):
     cookies[COOKIE_KEY] = json.dumps(payload)
     cookies.save()
 
-
 def _read_persisted_user_from_browser():
-    if st.session_state.get("allow_cookie_fallback"):
+    if st.session_state.get("allow_cookie_fallback") or cookies is None:
         return {}
     raw = cookies.get(COOKIE_KEY)
     if not raw:
@@ -144,12 +149,12 @@ def _read_persisted_user_from_browser():
     except Exception:
         return {}
 
-
 def _forget_persisted_user_in_browser():
-    if st.session_state.get("allow_cookie_fallback"):
+    if st.session_state.get("allow_cookie_fallback") or cookies is None:
         return
     cookies[COOKIE_KEY] = ""
     cookies.save()
+
 
 
 # ------------------------- Auth -------------------------
