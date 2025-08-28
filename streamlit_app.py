@@ -15,9 +15,6 @@ st.set_page_config(
     layout="wide",  # use full width; we'll constrain with CSS
     initial_sidebar_state="collapsed",
 )
-APP_BUILD = "2025-08-28-rotated-window-1"  # bump this whenever you deploy
-_set_qp(build=APP_BUILD)  # forces a full page reload with a new URL
-
 # Now it's safe to import things that might use st.*
 from firebase_config import get_firebase_clients     # <-- changed
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -1319,12 +1316,6 @@ if page == "settings":
         st.text_area("Report", txt, height=260, key="report_txt_settings")
         st.download_button("💾 Download .txt", txt, file_name="balls_logistics_report.txt", use_container_width=True,
                            key="dl_report_settings")
-
-if page == "settings":
-    if st.button("🧼 iOS: Force refresh app assets", use_container_width=True):
-        # unique value each press -> bypasses Safari cache
-        _set_qp(v=datetime.now().strftime("%Y%m%d%H%M%S"))
-
 
 # NOTE: Former Mileage statistics block removed per request.
 # Statistics now lives on the Expenses page and shows ONLY "Expenses by Category".
