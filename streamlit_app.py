@@ -820,17 +820,13 @@ elif page == "earnings":
         # Chronological domain for x-axis (rotated)
         domain_months = list(pd.Index(domain_months).to_pydatetime())
 
+        # Build base with the final axis/scale ONCE (before creating layers)
         base = alt.Chart(m).encode(
             x=alt.X(
                 "yearmonth(year_month):T",
                 title=None,
-                axis=alt.Axis(labelAngle=0, format="%b"),
-                # center the bands and give breathing room
-                scale=alt.Scale(
-                    domain=domain_months,
-                    paddingInner=0.6,  # space between month bands
-                    paddingOuter=0.5  # space on left/right edges
-                ),
+                axis=alt.Axis(labelAngle=0, labelPadding=8, tickSize=0, format="%b"),
+                scale=alt.Scale(domain=domain_months, paddingInner=0.6, paddingOuter=0.5),
             ),
             xOffset=alt.XOffset("Series:N"),
             y=alt.Y("Amount:Q", title=None, axis=alt.Axis(format="~s")),
@@ -846,16 +842,16 @@ elif page == "earnings":
             ],
         )
 
-        # Bars (slightly narrower so the pair sits centered inside each month)
+        # Bars
         bars = base.mark_bar(
-            size=18,  # was 26
+            size=18,
             cornerRadiusTopLeft=10,
             cornerRadiusTopRight=10
         )
 
-        # Outline current month (match bar width + a touch)
+        # Outline current month
         outline = base.transform_filter(alt.datum.is_current == True).mark_bar(
-            size=22,  # was 30
+            size=22,
             fillOpacity=0,
             stroke="#6b7280",
             strokeWidth=1.5,
@@ -863,46 +859,31 @@ elif page == "earnings":
             cornerRadiusTopRight=12
         )
 
-        # Value labels (hide zeros)
+        # Value labels
         labels = (
             base.transform_filter(alt.datum.Amount > 0)
             .mark_text(dy=-6, color="#111827")
-            .encode(text=alt.Text("Amount:Q", format="$.0f"),
-                    xOffset=alt.XOffset("Series:N"))
+            .encode(text=alt.Text("Amount:Q", format="$.0f"))
         )
 
-        # Center guide for each month band (improves month↔︎bars mapping on mobile)
+        # >>> Center guide for each month (now actually layered)
         guides = (
             alt.Chart(monthly)
-            .mark_rule(color="#9ca3af", opacity=0.35)
+            .mark_rule(strokeWidth=1, color="#9ca3af", opacity=0.35)
             .encode(
                 x=alt.X(
                     "yearmonth(year_month):T",
                     title=None,
-                    scale=alt.Scale(
-                        domain=domain_months,
-                        paddingInner=0.6,
-                        paddingOuter=0.5
-                    ),
+                    scale=alt.Scale(domain=domain_months, paddingInner=0.6, paddingOuter=0.5),
                 )
             )
         )
 
-        # (optional) slightly more readable x-axis labels on small screens
-        base = base.encode(
-            x=alt.X(
-                "yearmonth(year_month):T",
-                title=None,
-                axis=alt.Axis(labelAngle=0, labelPadding=8, tickSize=0, format="%b"),
-                scale=alt.Scale(domain=domain_months, paddingInner=0.6, paddingOuter=0.5),
-            )
-        )
-
         title_txt = "Income — 6-month window"
-        chart_income_grouped = (bars + outline + labels).properties(
+        chart_income_grouped = (bars + outline + guides + labels).properties(
             title=title_txt,
             height=220,
-        )
+        ).configure_axis(grid=False, domain=False).configure_view(strokeWidth=0)
 
         st.altair_chart(chart_income_grouped, use_container_width=True)
 
