@@ -748,7 +748,7 @@ elif page == "earnings":
 
         # 7-month window (including current)
         today_ts = pd.Timestamp.today().normalize()
-        start_7 = (today_ts - pd.DateOffset(months=6)).replace(day=1)
+        start_7 = (today_ts - pd.DateOffset(months=5)).replace(day=1)
         all_months_full = pd.date_range(start=start_7, end=today_ts, freq="MS")  # exactly 7 ticks
 
         # Monthly sums
