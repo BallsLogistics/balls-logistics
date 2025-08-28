@@ -783,7 +783,7 @@ elif page == "earnings":
         )
         m["Series"] = m["Series"].map({"worker": "Worker", "owner_net": "Owner's net"})
 
-        # Chronological domain for x-axis
+        # Chronological domain for x-axis (7 months only)
         domain_months = list(all_months.to_pydatetime())
 
         base = alt.Chart(m).encode(
@@ -791,7 +791,12 @@ elif page == "earnings":
                 "yearmonth(year_month):T",
                 title=None,
                 axis=alt.Axis(labelAngle=0, format="%b"),
-                scale=alt.Scale(domain=domain_months),  # enforce correct month order
+                # center the bands and give breathing room
+                scale=alt.Scale(
+                    domain=domain_months,
+                    paddingInner=0.6,  # space between month bands
+                    paddingOuter=0.5  # space on left/right edges
+                ),
             ),
             xOffset=alt.XOffset("Series:N"),
             y=alt.Y("Amount:Q", title=None, axis=alt.Axis(format="~s")),
@@ -807,20 +812,29 @@ elif page == "earnings":
             ],
         )
 
-        # Bars
-        bars = base.mark_bar(size=26, cornerRadiusTopLeft=10, cornerRadiusTopRight=10)
+        # Bars (slightly narrower so the pair sits centered inside each month)
+        bars = base.mark_bar(
+            size=18,  # was 26
+            cornerRadiusTopLeft=10,
+            cornerRadiusTopRight=10
+        )
 
-        # Outline current month
+        # Outline current month (match bar width + a touch)
         outline = base.transform_filter(alt.datum.is_current == True).mark_bar(
-            size=30, fillOpacity=0, stroke="#6b7280", strokeWidth=1.5,
-            cornerRadiusTopLeft=12, cornerRadiusTopRight=12
+            size=22,  # was 30
+            fillOpacity=0,
+            stroke="#6b7280",
+            strokeWidth=1.5,
+            cornerRadiusTopLeft=12,
+            cornerRadiusTopRight=12
         )
 
         # Value labels (hide zeros)
         labels = (
             base.transform_filter(alt.datum.Amount > 0)
             .mark_text(dy=-6, color="#111827")
-            .encode(text=alt.Text("Amount:Q", format="$.0f"), xOffset=alt.XOffset("Series:N"))
+            .encode(text=alt.Text("Amount:Q", format="$.0f"),
+                    xOffset=alt.XOffset("Series:N"))
         )
 
         chart_income_grouped = (bars + outline + labels).properties(
