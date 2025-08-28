@@ -745,9 +745,12 @@ elif page == "earnings":
         inc["owner"] = pd.to_numeric(inc.get("owner", 0.0), errors="coerce").fillna(0.0)
         exp["amount"] = pd.to_numeric(exp.get("amount", 0.0), errors="coerce").fillna(0.0)
 
-        # Last 12 calendar months (incl current)
+        # Instead of last 12 months, last 7 calendar months (incl current)
         today_ts = pd.Timestamp.today().normalize()
-        start_12 = (today_ts - pd.DateOffset(months=11)).replace(day=1)
+        start_7 = (today_ts - pd.DateOffset(months=6)).replace(day=1)
+
+        # Make sure only 7 months show up
+        all_months = pd.date_range(start=start_7, end=today_ts, freq="MS")
 
         # Monthly sums
         inc = inc[inc["date"].notna()]
@@ -783,17 +786,15 @@ elif page == "earnings":
         )
         m["Series"] = m["Series"].map({"worker": "Worker", "owner_net": "Owner's net"})
 
-        # Base encodings
-        # Chronological domain for the last 12 months (already have all_months)
-        domain_months = list(all_months.to_pydatetime())  # e.g. [2024-09-01, ..., 2025-08-01]
+        # Chronological domain for x-axis (7 months only)
+        domain_months = list(all_months.to_pydatetime())
 
         base = alt.Chart(m).encode(
-            # Discrete temporal axis from the real month, with a BAND scale (so xOffset works)
             x=alt.X(
                 "yearmonth(year_month):T",
                 title=None,
-                axis=alt.Axis(labelAngle=0, format="%b"),  # show Jan, Feb, ...
-                scale=alt.Scale(domain=domain_months),  # << enforce chronological order
+                axis=alt.Axis(labelAngle=0, format="%b"),
+                scale=alt.Scale(domain=domain_months),  # enforce chronological order
             ),
             xOffset=alt.XOffset("Series:N"),
             y=alt.Y("Amount:Q", title=None, axis=alt.Axis(format="~s")),
