@@ -663,7 +663,6 @@ elif page == "expenses":
                     rerun()
 
     # --- Statistics (ONLY Expenses by Category), placed below +Add ---
-    st.markdown("### 📊 Statistics")
     if st.session_state.expenses:
         df_exp = pd.DataFrame(st.session_state.expenses)
         # guard for legacy entries without amount/type
@@ -671,7 +670,7 @@ elif page == "expenses":
             df_grp = df_exp.groupby("type")["amount"].sum().reset_index()
             st.altair_chart(
                 alt.Chart(df_grp).mark_arc().encode(theta="amount", color="type",
-                                                    tooltip=["type", "amount"]).properties(title="Expenses by Category",
+                                                    tooltip=["type", "amount"]).properties(title="📊 Expenses by Category",
                                                                                            height=180),
                 use_container_width=True,
             )
