@@ -783,8 +783,6 @@ elif page == "earnings":
         )
         m["Series"] = m["Series"].map({"worker": "Worker", "owner_net": "Owner's net"})
 
-
-
         # Chronological domain for x-axis (7 months only)
         domain_months = list(all_months.to_pydatetime())
 
