@@ -732,7 +732,7 @@ elif page == "earnings":
         st.session_state.earn_reset += 1
         rerun()
 
-    # ----- Chart: Worker vs Owner's net (last 7 months, grouped bars) -----
+    # ----- Chart: Worker vs Owner's net (last 6 months, grouped bars & left-trim zeros) -----
     if st.session_state.earnings:
         inc = pd.DataFrame(st.session_state.earnings).copy()
         exp = pd.DataFrame(st.session_state.expenses).copy() if st.session_state.expenses else pd.DataFrame(
@@ -746,31 +746,40 @@ elif page == "earnings":
         inc["owner"] = pd.to_numeric(inc.get("owner", 0.0), errors="coerce").fillna(0.0)
         exp["amount"] = pd.to_numeric(exp.get("amount", 0.0), errors="coerce").fillna(0.0)
 
-        # Last 7 calendar months (incl current)
+        # Last 6 calendar months (incl current)
         today_ts = pd.Timestamp.today().normalize()
-        start_7 = (today_ts - pd.DateOffset(months=6)).replace(day=1)
+        start_6 = (today_ts - pd.DateOffset(months=5)).replace(day=1)
+        all_months = pd.date_range(start=start_6, end=today_ts, freq="MS")  # 6 ticks
 
         # Monthly sums
-        inc = inc[inc["date"].notna()]
+        inc = inc[inc["date"].notna()].copy()
         inc["year_month"] = inc["date"].dt.to_period("M").dt.to_timestamp()
         monthly_worker = inc.groupby("year_month")["worker"].sum()
         monthly_owner_gross = inc.groupby("year_month")["owner"].sum()
 
         if not exp.empty:
-            exp = exp[exp["date"].notna()]
+            exp = exp[exp["date"].notna()].copy()
             exp["year_month"] = exp["date"].dt.to_period("M").dt.to_timestamp()
             monthly_expenses = exp.groupby("year_month")["amount"].sum()
         else:
             monthly_expenses = pd.Series(dtype=float)
 
-        # Ensure every month exists (7 only)
-        all_months = pd.date_range(start=start_7, end=today_ts, freq="MS")
+        # Build 6-month table (index = months)
         monthly = pd.DataFrame(index=all_months)
         monthly["worker"] = monthly_worker.reindex(all_months, fill_value=0.0)
         monthly["owner_gross"] = monthly_owner_gross.reindex(all_months, fill_value=0.0)
         monthly["expenses"] = monthly_expenses.reindex(all_months, fill_value=0.0)
         monthly["owner_net"] = monthly["owner_gross"] - monthly["expenses"]
 
+        # Trim leading zero months so bars sit at far-left when earlier months are empty
+        nz_mask = (monthly["worker"] > 0) | (monthly["owner_net"] > 0)
+        if nz_mask.any():
+            first_month_with_data = monthly.index[nz_mask][0]
+            domain_months = pd.date_range(start=first_month_with_data, end=all_months[-1], freq="MS")
+        else:
+            domain_months = all_months
+
+        # Now reset and add helpers
         monthly = monthly.reset_index().rename(columns={"index": "year_month"})
         monthly["is_current"] = (monthly["year_month"].dt.to_period("M") == today_ts.to_period("M"))
 
@@ -782,20 +791,18 @@ elif page == "earnings":
             value_name="Amount",
         )
         m["Series"] = m["Series"].map({"worker": "Worker", "owner_net": "Owner's net"})
+        m["month_tick"] = m["year_month"]  # real timestamp for ordering/placement
 
-        # Chronological domain for x-axis (7 months only)
-        domain_months = list(all_months.to_pydatetime())
-
+        # Base encodings (bands centered over ticks)
         base = alt.Chart(m).encode(
             x=alt.X(
-                "yearmonth(year_month):T",
+                "yearmonth(month_tick):T",
                 title=None,
                 axis=alt.Axis(labelAngle=0, format="%b"),
-                # center the bands and give breathing room
                 scale=alt.Scale(
-                    domain=domain_months,
-                    paddingInner=0.6,  # space between month bands
-                    paddingOuter=0.5  # space on left/right edges
+                    domain=list(domain_months.to_pydatetime()),
+                    paddingInner=0.5,  # space between month bands
+                    paddingOuter=0.25  # space on edges
                 ),
             ),
             xOffset=alt.XOffset("Series:N"),
@@ -812,21 +819,13 @@ elif page == "earnings":
             ],
         )
 
-        # Bars (slightly narrower so the pair sits centered inside each month)
-        bars = base.mark_bar(
-            size=18,  # was 26
-            cornerRadiusTopLeft=10,
-            cornerRadiusTopRight=10
-        )
+        # Bars centered above their months
+        bars = base.mark_bar(size=18, cornerRadiusTopLeft=10, cornerRadiusTopRight=10)
 
-        # Outline current month (match bar width + a touch)
+        # Subtle outline for current month
         outline = base.transform_filter(alt.datum.is_current == True).mark_bar(
-            size=22,  # was 30
-            fillOpacity=0,
-            stroke="#6b7280",
-            strokeWidth=1.5,
-            cornerRadiusTopLeft=12,
-            cornerRadiusTopRight=12
+            size=22, fillOpacity=0, stroke="#6b7280", strokeWidth=1.5,
+            cornerRadiusTopLeft=12, cornerRadiusTopRight=12
         )
 
         # Value labels (hide zeros)
@@ -838,58 +837,14 @@ elif page == "earnings":
         )
 
         chart_income_grouped = (bars + outline + labels).properties(
-            title="Worker vs Owner’s net — last 7 months",
+            title="Worker vs Owner’s net — last 6 months",
             height=220,
         ).configure_axis(grid=False, domain=False).configure_view(strokeWidth=0)
 
         st.altair_chart(chart_income_grouped, use_container_width=True)
-
-    if st.session_state.earnings:
-        # Sort newest first (by date string)
-        entries = sorted(st.session_state.earnings, key=lambda e: e.get("date", ""), reverse=True)
-        df = pd.DataFrame(entries)
-
-        # Always recompute Owner's net using CURRENT total expenses
-        current_total_expenses = sum(float(e.get("amount", 0.0) or 0.0) for e in st.session_state.expenses)
-        df["owner"] = pd.to_numeric(df["owner"], errors="coerce").fillna(0.0)
-        df["worker"] = pd.to_numeric(df["worker"], errors="coerce").fillna(0.0)
-        df["net_owner"] = df["owner"] - float(current_total_expenses)
-
-        st.markdown("### 📋 Recent Income")  # ← Title
-
-        # Build display table: Worker's | Owner's gross | Owner's net | Date
-        df_recent = df[["worker", "owner", "net_owner", "date"]].copy()
-        df_recent = df_recent.rename(columns={
-            "worker": "Worker",
-            "owner": "Owner's gross",
-            "net_owner": "Owner's net",
-            "date": "Date",
-        })
-
-        # SHOW ONLY TOP 20 (newest first)
-        df_recent = df_recent.head(20)
-
-        # Ensure numeric then format as currency for the three money columns (guarded)
-        for col in ["Worker", "Owner's gross", "Owner's net"]:
-            if col in df_recent.columns:
-                df_recent[col] = pd.to_numeric(df_recent[col], errors="coerce").fillna(0.0)
-                df_recent[col] = df_recent[col].map(lambda x: f"${x:,.2f}")
-
-        # Reset index and render without the index column
-        df_recent = df_recent.reset_index(drop=True)
-        st.table(df_recent.style.hide(axis="index"))
-
-        # CSV (all rows, raw numbers)
-        df_csv = df[["worker", "owner", "net_owner", "date"]]
-        csv = df_csv.to_csv(index=False).encode("utf-8")
-        st.download_button("Download CSV", csv, "income.csv", "text/csv", use_container_width=True)
-
-        # Totals (all rows)
-        st.caption(
-            f"Totals — Worker: ${df['worker'].sum():.2f} | Owner's gross: ${df['owner'].sum():.2f} | Owner's net: ${df['net_owner'].sum():.2f}"
-        )
     else:
-        st.info("No income yet.")
+        st.caption("No income yet to chart.")
+
 
 
 
