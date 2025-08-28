@@ -751,11 +751,10 @@ elif page == "earnings":
         inc["owner"] = pd.to_numeric(inc.get("owner", 0.0), errors="coerce").fillna(0.0)
         exp["amount"] = pd.to_numeric(exp.get("amount", 0.0), errors="coerce").fillna(0.0)
 
-        # Last 7 calendar months (incl current)
-        today_ts = pd.Timestamp.today().normalize()
-        start_7 = (today_ts - pd.DateOffset(months=5)).replace(day=1)
+        # ---- Build a 6-month window that starts at the first month with data ----
+        N_MONTHS = 6  # you currently show 6 ticks; keep it explicit
 
-        # Monthly sums
+        # Monthly sums (same as before)
         inc = inc[inc["date"].notna()]
         inc["year_month"] = inc["date"].dt.to_period("M").dt.to_timestamp()
         monthly_worker = inc.groupby("year_month")["worker"].sum()
@@ -768,18 +767,42 @@ elif page == "earnings":
         else:
             monthly_expenses = pd.Series(dtype=float)
 
-        # Ensure every month exists (7 only)
-        all_months = pd.date_range(start=start_7, end=today_ts, freq="MS")
-        monthly = pd.DataFrame(index=all_months)
-        monthly["worker"] = monthly_worker.reindex(all_months, fill_value=0.0)
-        monthly["owner_gross"] = monthly_owner_gross.reindex(all_months, fill_value=0.0)
-        monthly["expenses"] = monthly_expenses.reindex(all_months, fill_value=0.0)
+        # Join and compute owner_net across all seen months
+        all_idx = sorted(set(monthly_worker.index) | set(monthly_owner_gross.index) | set(monthly_expenses.index))
+        if not all_idx:
+            # no data at all: fall back to a window ending today
+            today_ts = pd.Timestamp.today().normalize()
+            domain_months = pd.date_range(end=today_ts, periods=N_MONTHS, freq="MS")
+        else:
+            # first month that has any money in any series
+            df_any = pd.DataFrame(index=pd.Index(all_idx, name="year_month"))
+            df_any["worker"] = monthly_worker.reindex(df_any.index, fill_value=0.0)
+            df_any["owner_gross"] = monthly_owner_gross.reindex(df_any.index, fill_value=0.0)
+            df_any["expenses"] = monthly_expenses.reindex(df_any.index, fill_value=0.0)
+            df_any["owner_net"] = df_any["owner_gross"] - df_any["expenses"]
+
+            has_any = (df_any[["worker", "owner_net"]].sum(axis=1) != 0)
+            if has_any.any():
+                first_data_month = has_any.idxmax()  # earliest True
+                # start at first_data_month and roll forward N months (into future if needed)
+                domain_months = pd.date_range(start=first_data_month, periods=N_MONTHS, freq="MS")
+            else:
+                # everything is zero: show a window ending today
+                today_ts = pd.Timestamp.today().normalize()
+                domain_months = pd.date_range(end=today_ts, periods=N_MONTHS, freq="MS")
+
+        # Rebuild the monthly frame on this rotated domain
+        monthly = pd.DataFrame(index=domain_months)
+        monthly["worker"] = monthly_worker.reindex(domain_months, fill_value=0.0)
+        monthly["owner_gross"] = monthly_owner_gross.reindex(domain_months, fill_value=0.0)
+        monthly["expenses"] = monthly_expenses.reindex(domain_months, fill_value=0.0)
         monthly["owner_net"] = monthly["owner_gross"] - monthly["expenses"]
 
+        today_ts = pd.Timestamp.today().normalize()
         monthly = monthly.reset_index().rename(columns={"index": "year_month"})
         monthly["is_current"] = (monthly["year_month"].dt.to_period("M") == today_ts.to_period("M"))
 
-        # Long format for grouped bars
+        # Long format for grouped bars (unchanged below)
         m = monthly.melt(
             id_vars=["year_month", "is_current"],
             value_vars=["worker", "owner_net"],
@@ -788,8 +811,8 @@ elif page == "earnings":
         )
         m["Series"] = m["Series"].map({"worker": "Worker", "owner_net": "Owner's net"})
 
-        # Chronological domain for x-axis (7 months only)
-        domain_months = list(all_months.to_pydatetime())
+        # Chronological domain for x-axis (rotated)
+        domain_months = list(pd.Index(domain_months).to_pydatetime())
 
         base = alt.Chart(m).encode(
             x=alt.X(
@@ -842,10 +865,11 @@ elif page == "earnings":
                     xOffset=alt.XOffset("Series:N"))
         )
 
+        title_txt = "Income — 6-month window"
         chart_income_grouped = (bars + outline + labels).properties(
-            title="Worker vs Owner’s net — last 7 months",
+            title=title_txt,
             height=220,
-        ).configure_axis(grid=False, domain=False).configure_view(strokeWidth=0)
+        )
 
         st.altair_chart(chart_income_grouped, use_container_width=True)
 
