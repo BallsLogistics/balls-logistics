@@ -784,20 +784,16 @@ elif page == "earnings":
         m["Series"] = m["Series"].map({"worker": "Worker", "owner_net": "Owner's net"})
 
         # Base encodings
-        # Build a chronological domain for the last 12 months (already computed above)
-        domain_months = list(all_months.to_pydatetime())  # keep order
+        # Chronological domain for the last 12 months (already have all_months)
+        domain_months = list(all_months.to_pydatetime())  # e.g. [2024-09-01, ..., 2025-08-01]
 
         base = alt.Chart(m).encode(
-            # Use the real month date as the banded x field, enforce chronological order,
-            # and render ticks as short month names.
+            # Discrete temporal axis from the real month, with a BAND scale (so xOffset works)
             x=alt.X(
-                "year_month:O",
-                sort=domain_months,
+                "yearmonth(year_month):T",
                 title=None,
-                axis=alt.Axis(
-                    labelAngle=0,
-                    labelExpr="timeFormat(toDate(datum.value), '%b')"  # show Jan, Feb, ...
-                ),
+                axis=alt.Axis(labelAngle=0, format="%b"),  # show Jan, Feb, ...
+                scale=alt.Scale(domain=domain_months),  # << enforce chronological order
             ),
             xOffset=alt.XOffset("Series:N"),
             y=alt.Y("Amount:Q", title=None, axis=alt.Axis(format="~s")),
