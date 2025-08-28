@@ -174,7 +174,18 @@ def _force_logout():
     except Exception:
         pass
     st.success("Logged out.")
+
+    # clear auth UI state just in case
+    for k in ("auth_mode", "login_form", "register_form", "reset_form"):
+        st.session_state.pop(k, None)
+
+    # remove ?logout=1 from the URL (prevents rerun loop)
+    qp = dict(st.query_params)
+    qp.pop("logout", None)
+    _set_qp(**qp)
+
     rerun()
+
 
 
 if "logout" in qs:
