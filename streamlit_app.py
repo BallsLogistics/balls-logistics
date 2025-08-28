@@ -748,7 +748,7 @@ elif page == "earnings":
 
         # Last 7 calendar months (incl current)
         today_ts = pd.Timestamp.today().normalize()
-        start_7 = (today_ts - pd.DateOffset(months=6)).replace(day=1)
+        start_7 = (today_ts - pd.DateOffset(months=5)).replace(day=1)
 
         # Monthly sums
         inc = inc[inc["date"].notna()]
