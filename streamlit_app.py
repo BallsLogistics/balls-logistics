@@ -785,13 +785,19 @@ elif page == "earnings":
 
         # Base encodings
         base = alt.Chart(m).encode(
-            x=alt.X("month_label:N", title=None, axis=alt.Axis(labelAngle=0)),
+            # sort month labels by their underlying date
+            x=alt.X(
+                "month_label:N",
+                title=None,
+                axis=alt.Axis(labelAngle=0),
+                sort=alt.SortField(field="year_month", order="ascending"),
+            ),
             xOffset=alt.XOffset("Series:N"),
             y=alt.Y("Amount:Q", title=None, axis=alt.Axis(format="~s")),
             color=alt.Color(
                 "Series:N",
                 scale=alt.Scale(domain=["Worker", "Owner's net"], range=["#39d353", "#333333"]),
-                legend=alt.Legend(title=None, orient="top")
+                legend=alt.Legend(title=None, orient="top"),
             ),
             tooltip=[
                 alt.Tooltip("year_month:T", title="Month", format="%b %Y"),
