@@ -871,6 +871,33 @@ elif page == "earnings":
                     xOffset=alt.XOffset("Series:N"))
         )
 
+        # Center guide for each month band (improves month↔︎bars mapping on mobile)
+        guides = (
+            alt.Chart(monthly)
+            .mark_rule(color="#9ca3af", opacity=0.35)
+            .encode(
+                x=alt.X(
+                    "yearmonth(year_month):T",
+                    title=None,
+                    scale=alt.Scale(
+                        domain=domain_months,
+                        paddingInner=0.6,
+                        paddingOuter=0.5
+                    ),
+                )
+            )
+        )
+
+        # (optional) slightly more readable x-axis labels on small screens
+        base = base.encode(
+            x=alt.X(
+                "yearmonth(year_month):T",
+                title=None,
+                axis=alt.Axis(labelAngle=0, labelPadding=8, tickSize=0, format="%b"),
+                scale=alt.Scale(domain=domain_months, paddingInner=0.6, paddingOuter=0.5),
+            )
+        )
+
         title_txt = "Income — 6-month window"
         chart_income_grouped = (bars + outline + labels).properties(
             title=title_txt,
