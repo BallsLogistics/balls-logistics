@@ -732,11 +732,12 @@ elif page == "earnings":
         st.session_state.earn_reset += 1
         rerun()
 
-    # ----- Chart: Worker vs Owner's net (last 12 months, grouped bars) -----
+    # ----- Chart: Worker vs Owner's net (last 7 months, grouped bars) -----
     if st.session_state.earnings:
         inc = pd.DataFrame(st.session_state.earnings).copy()
         exp = pd.DataFrame(st.session_state.expenses).copy() if st.session_state.expenses else pd.DataFrame(
-            columns=["date", "amount"])
+            columns=["date", "amount"]
+        )
 
         # Parse + coerce
         inc["date"] = pd.to_datetime(inc.get("date"), errors="coerce")
@@ -745,12 +746,9 @@ elif page == "earnings":
         inc["owner"] = pd.to_numeric(inc.get("owner", 0.0), errors="coerce").fillna(0.0)
         exp["amount"] = pd.to_numeric(exp.get("amount", 0.0), errors="coerce").fillna(0.0)
 
-        # Instead of last 12 months, last 7 calendar months (incl current)
+        # Last 7 calendar months (incl current)
         today_ts = pd.Timestamp.today().normalize()
         start_7 = (today_ts - pd.DateOffset(months=6)).replace(day=1)
-
-        # Make sure only 7 months show up
-        all_months = pd.date_range(start=start_7, end=today_ts, freq="MS")
 
         # Monthly sums
         inc = inc[inc["date"].notna()]
@@ -765,8 +763,8 @@ elif page == "earnings":
         else:
             monthly_expenses = pd.Series(dtype=float)
 
-        # Ensure every month exists
-        all_months = pd.date_range(start=start_12, end=today_ts, freq="MS")
+        # Ensure every month exists (7 only)
+        all_months = pd.date_range(start=start_7, end=today_ts, freq="MS")
         monthly = pd.DataFrame(index=all_months)
         monthly["worker"] = monthly_worker.reindex(all_months, fill_value=0.0)
         monthly["owner_gross"] = monthly_owner_gross.reindex(all_months, fill_value=0.0)
@@ -774,19 +772,18 @@ elif page == "earnings":
         monthly["owner_net"] = monthly["owner_gross"] - monthly["expenses"]
 
         monthly = monthly.reset_index().rename(columns={"index": "year_month"})
-        monthly["month_label"] = monthly["year_month"].dt.strftime("%b")  # Mar, Apr, ...
         monthly["is_current"] = (monthly["year_month"].dt.to_period("M") == today_ts.to_period("M"))
 
         # Long format for grouped bars
         m = monthly.melt(
-            id_vars=["year_month", "month_label", "is_current"],
+            id_vars=["year_month", "is_current"],
             value_vars=["worker", "owner_net"],
             var_name="Series",
             value_name="Amount",
         )
         m["Series"] = m["Series"].map({"worker": "Worker", "owner_net": "Owner's net"})
 
-        # Chronological domain for x-axis (7 months only)
+        # Chronological domain for x-axis
         domain_months = list(all_months.to_pydatetime())
 
         base = alt.Chart(m).encode(
@@ -794,7 +791,7 @@ elif page == "earnings":
                 "yearmonth(year_month):T",
                 title=None,
                 axis=alt.Axis(labelAngle=0, format="%b"),
-                scale=alt.Scale(domain=domain_months),  # enforce chronological order
+                scale=alt.Scale(domain=domain_months),  # enforce correct month order
             ),
             xOffset=alt.XOffset("Series:N"),
             y=alt.Y("Amount:Q", title=None, axis=alt.Axis(format="~s")),
@@ -819,18 +816,15 @@ elif page == "earnings":
             cornerRadiusTopLeft=12, cornerRadiusTopRight=12
         )
 
-        # Value labels: hide zeros, position over each **own** bar using xOffset too
-        labels = (base
-        .transform_filter(alt.datum.Amount > 0)
-        .mark_text(dy=-6, color="#111827")
-        .encode(
-            text=alt.Text("Amount:Q", format="$.0f"),
-            xOffset=alt.XOffset("Series:N"),
-        )
+        # Value labels (hide zeros)
+        labels = (
+            base.transform_filter(alt.datum.Amount > 0)
+            .mark_text(dy=-6, color="#111827")
+            .encode(text=alt.Text("Amount:Q", format="$.0f"), xOffset=alt.XOffset("Series:N"))
         )
 
         chart_income_grouped = (bars + outline + labels).properties(
-            title="Worker vs Owner’s net — last 12 months",
+            title="Worker vs Owner’s net — last 7 months",
             height=220,
         ).configure_axis(grid=False, domain=False).configure_view(strokeWidth=0)
 
