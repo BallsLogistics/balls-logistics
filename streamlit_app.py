@@ -231,24 +231,31 @@ if st.session_state.user is None:
         email = st.text_input("Email", key="login_email")
         password = st.text_input("Password", type="password", key="login_password")
 
-        if st.button("Login", use_container_width=True, key="login_click"):
-            try:
-                user = auth.sign_in_with_email_and_password(email, password)
-                st.session_state.user = {
-                    "localId": user["localId"],
-                    "idToken": user["idToken"],
-                    "refreshToken": user["refreshToken"],
-                    "email": email,
-                }
-                _persist_user_to_browser(st.session_state.user)  # no-op in fallback mode, which is fine
-                # clear the temporary inputs to avoid reuse
-                st.session_state["login_email"] = ""
-                st.session_state["login_password"] = ""
-                rerun()
-            except Exception as e:
-                st.error("❌ " + str(e))
+        # Only enable when both fields look non-empty
+        can_submit = bool(email.strip()) and bool(password)
 
-        st.button("Login", use_container_width=True, key="login_btn", on_click=_do_login)
+        if st.button("Login", use_container_width=True, key="login_click", disabled=not can_submit):
+            e = email.strip()
+            p = password  # keep exact
+            # minimal client-side validation to avoid INVALID_EMAIL on empty/garbage
+            if "@" not in e or "." not in e.split("@")[-1]:
+                st.error("Please enter a valid email address.")
+            else:
+                try:
+                    user = auth.sign_in_with_email_and_password(e, p)
+                    st.session_state.user = {
+                        "localId": user["localId"],
+                        "idToken": user["idToken"],
+                        "refreshToken": user["refreshToken"],
+                        "email": e,
+                    }
+                    _persist_user_to_browser(st.session_state.user)  # no-op in fallback mode
+                    # clear the temporary inputs to avoid reuse
+                    st.session_state["login_email"] = ""
+                    st.session_state["login_password"] = ""
+                    rerun()
+                except Exception as ex:
+                    st.error("❌ " + str(ex))
 
         # show any error from the callback
         if st.session_state.get("login_error"):
