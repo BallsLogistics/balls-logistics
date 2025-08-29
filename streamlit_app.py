@@ -228,34 +228,51 @@ if st.session_state.user is None:
 
 
     def _clean_email(s: str) -> str:
-        # strip normal spaces + NBSP + zero-width chars that iOS AutoFill can add
-        if s is None:
+        if not s:
             return ""
+        # normal spaces, NBSP, zero-width joiner/non-joiner that iOS AutoFill can add
         s = s.replace("\u00a0", " ").replace("\u200b", "").replace("\u200d", "")
         return s.strip()
 
 
+    def _touch():
+        # touch a dummy key to force a re-run when a field changes (fixes Windows hover)
+        st.session_state["_login_touch"] = st.session_state.get("_login_touch", 0) + 1
+
+
     if mode == "Login":
-        # If the previous run asked to clear inputs, do it *before* creating widgets
+        # (Optional) clear inputs on the next run after successful login
         if st.session_state.get("clear_login_inputs"):
             st.session_state.pop("login_email", None)
             st.session_state.pop("login_password", None)
             st.session_state.clear_login_inputs = False
 
-        # Plain inputs (no form) – better on iOS
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Password", type="password", key="login_password")
+        # Text inputs: fire _touch on every change to keep the UI in sync
+        email = st.text_input(
+            "Email",
+            key="login_email",
+            on_change=_touch,
+            # if your Streamlit version supports it, this helps AutoFill:
+            autocomplete="username"  # safe to keep; ignored on older versions
+        )
+        password = st.text_input(
+            "Password",
+            type="password",
+            key="login_password",
+            on_change=_touch,
+            autocomplete="current-password"  # helps Safari/Chrome AutoFill
+        )
 
-        # Only enable when both fields present
-        can_submit = bool(email) and bool(password)
+        # Always enabled; validate inside
+        if st.button("Login", use_container_width=True):
+            e = _clean_email(st.session_state.get("login_email", ""))
+            p = st.session_state.get("login_password", "")
 
-        if st.button("Login", use_container_width=True, disabled=not can_submit):
-            e = _clean_email(email)
-            p = password  # don't strip; passwords may be space-sensitive
-
-            # simple client-side check to avoid avoidable roundtrips
-            if "@" not in e or "." not in e.split("@")[-1]:
+            # Client-side guards (avoid INVALID_EMAIL / MISSING_PASSWORD)
+            if not e or "@" not in e or "." not in e.split("@")[-1]:
                 st.error("Please enter a valid email address.")
+            elif not p:
+                st.error("Please enter your password.")
             else:
                 try:
                     user = auth.sign_in_with_email_and_password(e, p)
@@ -265,14 +282,11 @@ if st.session_state.user is None:
                         "refreshToken": user["refreshToken"],
                         "email": e,
                     }
-                    _persist_user_to_browser(st.session_state.user)  # no-op in fallback mode
-                    # schedule clearing on the *next* run (avoid same-run mutation)
-                    st.session_state.clear_login_inputs = True
+                    _persist_user_to_browser(st.session_state.user)
+                    st.session_state.clear_login_inputs = True  # clear on next run
                     st.rerun()
                 except Exception as ex:
                     st.error("❌ " + str(ex))
-
-
 
     elif mode == "Register":
         with st.form("register_form", border=False):
