@@ -226,18 +226,34 @@ if st.session_state.user is None:
         else st.radio("", ["Login", "Register", "Reset"], horizontal=True)
     )
 
+
+    def _clean_email(s: str) -> str:
+        # strip normal spaces + NBSP + zero-width chars that iOS AutoFill can add
+        if s is None:
+            return ""
+        s = s.replace("\u00a0", " ").replace("\u200b", "").replace("\u200d", "")
+        return s.strip()
+
+
     if mode == "Login":
-        # Plain inputs (no st.form) — more reliable on iOS
+        # If the previous run asked to clear inputs, do it *before* creating widgets
+        if st.session_state.get("clear_login_inputs"):
+            st.session_state.pop("login_email", None)
+            st.session_state.pop("login_password", None)
+            st.session_state.clear_login_inputs = False
+
+        # Plain inputs (no form) – better on iOS
         email = st.text_input("Email", key="login_email")
         password = st.text_input("Password", type="password", key="login_password")
 
-        # Only enable when both fields look non-empty
-        can_submit = bool(email.strip()) and bool(password)
+        # Only enable when both fields present
+        can_submit = bool(email) and bool(password)
 
-        if st.button("Login", use_container_width=True, key="login_click", disabled=not can_submit):
-            e = email.strip()
-            p = password  # keep exact
-            # minimal client-side validation to avoid INVALID_EMAIL on empty/garbage
+        if st.button("Login", use_container_width=True, disabled=not can_submit):
+            e = _clean_email(email)
+            p = password  # don't strip; passwords may be space-sensitive
+
+            # simple client-side check to avoid avoidable roundtrips
             if "@" not in e or "." not in e.split("@")[-1]:
                 st.error("Please enter a valid email address.")
             else:
@@ -250,16 +266,12 @@ if st.session_state.user is None:
                         "email": e,
                     }
                     _persist_user_to_browser(st.session_state.user)  # no-op in fallback mode
-                    # clear the temporary inputs to avoid reuse
-                    st.session_state["login_email"] = ""
-                    st.session_state["login_password"] = ""
-                    rerun()
+                    # schedule clearing on the *next* run (avoid same-run mutation)
+                    st.session_state.clear_login_inputs = True
+                    st.rerun()
                 except Exception as ex:
                     st.error("❌ " + str(ex))
 
-        # show any error from the callback
-        if st.session_state.get("login_error"):
-            st.error(st.session_state["login_error"])
 
 
     elif mode == "Register":
