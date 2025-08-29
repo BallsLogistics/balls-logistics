@@ -164,38 +164,21 @@ def _forget_persisted_user_in_browser():
 
 
 # ------------------------- Auth -------------------------
-def _force_logout():
-    # wipe in-memory user
-    st.session_state.user = None
+qs = st.query_params
 
-    # drop browser cookie if we had one
+
+def _force_logout():
+    st.session_state.user = None
     try:
         _forget_persisted_user_in_browser()
     except Exception:
         pass
-
-    # iOS/Safari safe: skip cookie component on next run
-    st.session_state.allow_cookie_fallback = True
-
-    # clear any UI/auth state that could interfere
-    for k in ("auth_mode", "login_form", "register_form", "reset_form"):
-        st.session_state.pop(k, None)
-
-    # nuke ALL query params (removes ?logout=1)
-    try:
-        st.query_params.clear()                  # Streamlit ≥ 1.33
-    except Exception:
-        st.experimental_set_query_params()       # older
-
-    # immediately render the next run (which will show the login form)
-    st.rerun()
+    st.success("Logged out.")
+    rerun()
 
 
-
-# --- handle logout ASAP, using the live proxy ---
-if "logout" in st.query_params:
-    _force_logout()   # will clear params + stop
-
+if "logout" in qs:
+    _force_logout()
 
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -226,67 +209,25 @@ if st.session_state.user is None:
         else st.radio("", ["Login", "Register", "Reset"], horizontal=True)
     )
 
-
-    def _clean_email(s: str) -> str:
-        if not s:
-            return ""
-        # normal spaces, NBSP, zero-width joiner/non-joiner that iOS AutoFill can add
-        s = s.replace("\u00a0", " ").replace("\u200b", "").replace("\u200d", "")
-        return s.strip()
-
-
-    def _touch():
-        # touch a dummy key to force a re-run when a field changes (fixes Windows hover)
-        st.session_state["_login_touch"] = st.session_state.get("_login_touch", 0) + 1
-
-
     if mode == "Login":
-        # (Optional) clear inputs on the next run after successful login
-        if st.session_state.get("clear_login_inputs"):
-            st.session_state.pop("login_email", None)
-            st.session_state.pop("login_password", None)
-            st.session_state.clear_login_inputs = False
 
-        # Text inputs: fire _touch on every change to keep the UI in sync
-        email = st.text_input(
-            "Email",
-            key="login_email",
-            on_change=_touch,
-            # if your Streamlit version supports it, this helps AutoFill:
-            autocomplete="username"  # safe to keep; ignored on older versions
-        )
-        password = st.text_input(
-            "Password",
-            type="password",
-            key="login_password",
-            on_change=_touch,
-            autocomplete="current-password"  # helps Safari/Chrome AutoFill
-        )
-
-        # Always enabled; validate inside
-        if st.button("Login", use_container_width=True):
-            e = _clean_email(st.session_state.get("login_email", ""))
-            p = st.session_state.get("login_password", "")
-
-            # Client-side guards (avoid INVALID_EMAIL / MISSING_PASSWORD)
-            if not e or "@" not in e or "." not in e.split("@")[-1]:
-                st.error("Please enter a valid email address.")
-            elif not p:
-                st.error("Please enter your password.")
-            else:
-                try:
-                    user = auth.sign_in_with_email_and_password(e, p)
-                    st.session_state.user = {
-                        "localId": user["localId"],
-                        "idToken": user["idToken"],
-                        "refreshToken": user["refreshToken"],
-                        "email": e,
-                    }
-                    _persist_user_to_browser(st.session_state.user)
-                    st.session_state.clear_login_inputs = True  # clear on next run
-                    st.rerun()
-                except Exception as ex:
-                    st.error("❌ " + str(ex))
+        with st.form("login_form", border=False):
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login", use_container_width=True)
+        if submitted:
+            try:
+                user = auth.sign_in_with_email_and_password(email, password)
+                st.session_state.user = {
+                    "localId": user["localId"],
+                    "idToken": user["idToken"],
+                    "refreshToken": user["refreshToken"],
+                    "email": email,
+                }
+                _persist_user_to_browser(st.session_state.user)
+                rerun()
+            except Exception as e:
+                st.error("❌ " + str(e))
 
     elif mode == "Register":
         with st.form("register_form", border=False):
@@ -329,12 +270,9 @@ if st.session_state.user is None:
 # Account bar: "Logged in: email" (no parentheses) + wide Logout button
 
 def render_account_bar(email: str | None):
-    ts = datetime.now().strftime("%H%M%S%f")
     st.markdown(
-        f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div>
-            <a class="logout-link" href="?logout=1&t={ts}">Logout</a></div>''',
-        unsafe_allow_html=True
-    )
+        f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div><a class="logout-link" href="?logout=1">Logout</a></div>''',
+        unsafe_allow_html=True)
 
 
 if st.session_state.get("allow_cookie_fallback"):
