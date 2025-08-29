@@ -177,14 +177,19 @@ def _force_logout():
     # iOS/Safari safe: skip cookie component on next run
     st.session_state.allow_cookie_fallback = True
 
-    # nuke ALL query params (removes ?logout=1 reliably)
+    # clear any UI/auth state that could interfere
+    for k in ("auth_mode", "login_form", "register_form", "reset_form"):
+        st.session_state.pop(k, None)
+
+    # nuke ALL query params (removes ?logout=1)
     try:
         st.query_params.clear()                  # Streamlit ≥ 1.33
     except Exception:
-        st.experimental_set_query_params()       # older: clears everything
+        st.experimental_set_query_params()       # older
 
-    st.success("Logged out.")
-    st.stop()    # end this run; next run shows Login/Register
+    # immediately render the next run (which will show the login form)
+    st.rerun()
+
 
 
 # --- handle logout ASAP, using the live proxy ---
