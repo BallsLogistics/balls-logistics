@@ -164,32 +164,33 @@ def _forget_persisted_user_in_browser():
 
 
 # ------------------------- Auth -------------------------
-qs = st.query_params
-
-
 def _force_logout():
+    # wipe in-memory user
     st.session_state.user = None
+
+    # drop browser cookie if we had one
     try:
         _forget_persisted_user_in_browser()
     except Exception:
         pass
+
+    # iOS/Safari safe: skip cookie component on next run
+    st.session_state.allow_cookie_fallback = True
+
+    # nuke ALL query params (removes ?logout=1 reliably)
+    try:
+        st.query_params.clear()                  # Streamlit ≥ 1.33
+    except Exception:
+        st.experimental_set_query_params()       # older: clears everything
+
     st.success("Logged out.")
-
-    # clear auth UI state just in case
-    for k in ("auth_mode", "login_form", "register_form", "reset_form"):
-        st.session_state.pop(k, None)
-
-    # remove ?logout=1 from the URL (prevents rerun loop)
-    qp = dict(st.query_params)
-    qp.pop("logout", None)
-    _set_qp(**qp)
-
-    rerun()
+    st.stop()    # end this run; next run shows Login/Register
 
 
+# --- handle logout ASAP, using the live proxy ---
+if "logout" in st.query_params:
+    _force_logout()   # will clear params + stop
 
-if "logout" in qs:
-    _force_logout()
 
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -281,9 +282,12 @@ if st.session_state.user is None:
 # Account bar: "Logged in: email" (no parentheses) + wide Logout button
 
 def render_account_bar(email: str | None):
+    ts = datetime.now().strftime("%H%M%S%f")
     st.markdown(
-        f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div><a class="logout-link" href="?logout=1">Logout</a></div>''',
-        unsafe_allow_html=True)
+        f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div>
+            <a class="logout-link" href="?logout=1&t={ts}">Logout</a></div>''',
+        unsafe_allow_html=True
+    )
 
 
 if st.session_state.get("allow_cookie_fallback"):
