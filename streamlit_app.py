@@ -219,23 +219,26 @@ if st.session_state.user is None:
     )
 
     if mode == "Login":
-        if st.session_state.get("clear_login_inputs"):
-            st.session_state.pop("login_email", None)
-            st.session_state.pop("login_password", None)
-            st.session_state.clear_login_inputs = False
+        # clean weird iOS characters
+        def _clean_email(s: str | None) -> str:
+            s = (s or "")
+            return (s.replace("\u00a0", " ")
+                    .replace("\u200b", "")
+                    .replace("\u200d", "")
+                    .strip())
 
 
-        def _clean_email(s: str) -> str:
-            if s is None: return ""
-            return (s.replace("\u00a0", " ").replace("\u200b", "").replace("\u200d", "").strip())
+        # --- FORM ensures iOS/Safari commits the inputs before we read them ---
+        with st.form("login_form", border=False, clear_on_submit=False):
+            st.text_input("Email", key="login_email")
+            st.text_input("Password", type="password", key="login_password")
+            submitted = st.form_submit_button("Login", use_container_width=True)
 
-
-        st.text_input("Email", key="login_email")
-        st.text_input("Password", type="password", key="login_password")
-
-        if st.button("Login", use_container_width=True):
+        if submitted:
+            # Read from session_state (more reliable than local vars on iOS)
             e = _clean_email(st.session_state.get("login_email", ""))
             p = st.session_state.get("login_password", "")
+
             if not e or not p:
                 st.error("Please enter both email and password.")
             elif "@" not in e or "." not in e.split("@")[-1]:
@@ -249,11 +252,14 @@ if st.session_state.user is None:
                         "refreshToken": user["refreshToken"],
                         "email": e,
                     }
-                    _persist_user_to_browser(st.session_state.user)
-                    st.session_state.clear_login_inputs = True
+                    _persist_user_to_browser(st.session_state.user)  # no-op in fallback mode
+                    # Optional: clear the inputs next run so they don't stay filled
+                    st.session_state.pop("login_email", None)
+                    st.session_state.pop("login_password", None)
                     st.rerun()
                 except Exception as ex:
                     st.error("❌ " + str(ex))
+
 
 
 
