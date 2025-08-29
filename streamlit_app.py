@@ -83,12 +83,25 @@ st.markdown(
         display:flex; align-items:center; justify-content:space-between;
         gap:.5rem; margin:.25rem 0 .35rem 0; overflow:hidden;
       }
-      /* make email take remaining space, no scroll, ellipsis */
+
+      /* container takes remaining width */
       .account-row .email{
-        flex:1; min-width:0;
-        font-size:.95rem; font-weight:500;
+        flex:1; min-width:0; display:flex; align-items:center;
+      }
+
+      /* clamp the actual text; no horizontal scroll on iOS */
+      .account-row .email .email-text{
+        display:block; max-width:100%;
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        overscroll-behavior-x: contain;           /* prevent sideways panning */
+        -webkit-overflow-scrolling: auto;         /* disable momentum scroll */
+      }
+      /* if Streamlit ever injects a <p>, clamp that too */
+      .account-row .email p{
+        margin:0; max-width:100%;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
       }
+
       .account-row .logout-link{
         flex:0 0 auto; display:inline-flex; align-items:center;
         padding:.35rem .6rem; border:1px solid #e5e7eb; border-radius:10px; text-decoration:none;
@@ -100,6 +113,7 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
 
 
 # ------------------------- Secrets Check -------------------------
@@ -315,16 +329,18 @@ if st.session_state.user is None:
 
 
 # ------------------------- Authenticated -------------------------
-# Account bar: "Logged in: email" (no parentheses) + wide Logout button
 def render_account_bar(email: str | None):
-    c1, c2 = st.columns([0.7, 0.3])
-    with c1:
-        st.markdown(
-            f"<div class='account-row'><div class='email'>Logged in: {email or '—'}</div></div>",
-            unsafe_allow_html=True
-        )
-    with c2:
-        st.button("Logout", key="logout_btn", on_click=_force_logout, use_container_width=True)
+    ts = datetime.now().strftime("%H%M%S%f")
+    st.markdown(
+        f"""
+        <div class="account-row">
+          <div class="email"><span class="email-text">Logged in: {email or "—"}</span></div>
+          <a class="logout-link" href="?logout=1&t={ts}">Logout</a>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 
 
 
