@@ -164,10 +164,6 @@ def _forget_persisted_user_in_browser():
 
 
 # ------------------------- Auth -------------------------
-qs = st.query_params
-
-
-# ------------------------- Auth -------------------------
 
 def _force_logout():
     # wipe in-memory user
@@ -196,10 +192,6 @@ def _force_logout():
 if "logout" in st.query_params:
     _force_logout()
 
-
-
-if "logout" in qs:
-    _force_logout()
 
 if "user" not in st.session_state:
     st.session_state.user = None
