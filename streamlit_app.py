@@ -227,12 +227,11 @@ if st.session_state.user is None:
     )
 
     if mode == "Login":
-        # standalone widgets (no st.form)
+        # Plain inputs (no st.form) — more reliable on iOS
         email = st.text_input("Email", key="login_email")
         password = st.text_input("Password", type="password", key="login_password")
 
-
-        def _do_login():
+        if st.button("Login", use_container_width=True, key="login_click"):
             try:
                 user = auth.sign_in_with_email_and_password(email, password)
                 st.session_state.user = {
@@ -241,14 +240,13 @@ if st.session_state.user is None:
                     "refreshToken": user["refreshToken"],
                     "email": email,
                 }
-                _persist_user_to_browser(st.session_state.user)  # no-op in fallback
-                # clean any old auth ui state
-                for k in ("auth_mode", "login_form", "register_form", "reset_form"):
-                    st.session_state.pop(k, None)
-                st.rerun()
+                _persist_user_to_browser(st.session_state.user)  # no-op in fallback mode, which is fine
+                # clear the temporary inputs to avoid reuse
+                st.session_state["login_email"] = ""
+                st.session_state["login_password"] = ""
+                rerun()
             except Exception as e:
-                st.session_state["login_error"] = f"❌ {e}"
-
+                st.error("❌ " + str(e))
 
         st.button("Login", use_container_width=True, key="login_btn", on_click=_do_login)
 
