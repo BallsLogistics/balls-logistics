@@ -123,10 +123,21 @@ if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID", "coo
 
 # ------------------------- Rerun Helper -------------------------
 
-def rerun():
-    fn = getattr(st, "rerun", None) or getattr(st, "experimental_rerun", None)
-    if callable(fn):
-        fn()
+def rerun(clear=False):
+    # Silent rerun: tweak a QP and stop this run (no Streamlit banner)
+    nonce = datetime.now().strftime("%H%M%S%f")
+    try:
+        if clear:
+            st.query_params.clear()  # wipe current params (e.g., after logout)
+        st.query_params.update({"_r": nonce})
+    except Exception:
+        # Older Streamlit fallback
+        if clear:
+            st.experimental_set_query_params(_r=nonce)
+        else:
+            st.experimental_set_query_params(_r=nonce)
+    st.stop()
+
 
 def _set_qp(**kwargs):
     try:
@@ -194,27 +205,14 @@ def _forget_persisted_user_in_browser():
 # ------------------------- Auth -------------------------
 
 def _force_logout():
-    # wipe in-memory user
     st.session_state.user = None
-
-    # drop browser cookie if it exists
-    try:
-        _forget_persisted_user_in_browser()
-    except Exception:
-        pass
-
-    # (optional) safer defaults for Safari/iOS
+    try: _forget_persisted_user_in_browser()
+    except Exception: pass
     st.session_state.allow_cookie_fallback = True
     for k in ("auth_mode", "login_form", "register_form", "reset_form"):
         st.session_state.pop(k, None)
+    rerun(clear=True)   # 👈 silent rerun, no banner
 
-    # 🔑 critical: remove ?logout=1 (and all other params) before rerun
-    try:
-        st.query_params.clear()              # Streamlit ≥1.33
-    except Exception:
-        st.experimental_set_query_params()   # fallback for older versions
-
-    st.rerun()
 
 
 if "user" not in st.session_state:
