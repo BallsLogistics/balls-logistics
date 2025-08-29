@@ -227,12 +227,12 @@ if st.session_state.user is None:
     )
 
     if mode == "Login":
+        # standalone widgets (no st.form)
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Password", type="password", key="login_password")
 
-        with st.form("login_form", border=False):
-            email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Login", use_container_width=True)
-        if submitted:
+
+        def _do_login():
             try:
                 user = auth.sign_in_with_email_and_password(email, password)
                 st.session_state.user = {
@@ -241,10 +241,21 @@ if st.session_state.user is None:
                     "refreshToken": user["refreshToken"],
                     "email": email,
                 }
-                _persist_user_to_browser(st.session_state.user)
-                rerun()
+                _persist_user_to_browser(st.session_state.user)  # no-op in fallback
+                # clean any old auth ui state
+                for k in ("auth_mode", "login_form", "register_form", "reset_form"):
+                    st.session_state.pop(k, None)
+                st.rerun()
             except Exception as e:
-                st.error("❌ " + str(e))
+                st.session_state["login_error"] = f"❌ {e}"
+
+
+        st.button("Login", use_container_width=True, key="login_btn", on_click=_do_login)
+
+        # show any error from the callback
+        if st.session_state.get("login_error"):
+            st.error(st.session_state["login_error"])
+
 
     elif mode == "Register":
         with st.form("register_form", border=False):
