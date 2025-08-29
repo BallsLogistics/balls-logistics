@@ -188,10 +188,6 @@ def _force_logout():
 
     st.rerun()
 
-# handle logout ASAP using the live query params (do NOT cache them)
-if "logout" in st.query_params:
-    _force_logout()
-
 
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -223,32 +219,23 @@ if st.session_state.user is None:
     )
 
     if mode == "Login":
-        # Clear inputs safely on the run *before* widgets are created
         if st.session_state.get("clear_login_inputs"):
             st.session_state.pop("login_email", None)
             st.session_state.pop("login_password", None)
             st.session_state.clear_login_inputs = False
 
 
-        # iOS/Keychain can insert NBSP & zero-width chars; strip those
         def _clean_email(s: str) -> str:
-            if s is None:
-                return ""
-            return (
-                s.replace("\u00a0", " ")  # NBSP
-                .replace("\u200b", "")  # zero-width space
-                .replace("\u200d", "")  # zero-width joiner
-                .strip()
-            )
+            if s is None: return ""
+            return (s.replace("\u00a0", " ").replace("\u200b", "").replace("\u200d", "").strip())
 
 
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Password", type="password", key="login_password")
+        st.text_input("Email", key="login_email")
+        st.text_input("Password", type="password", key="login_password")
 
-        # Always enabled (prevents Safari hover/disabled weirdness)
         if st.button("Login", use_container_width=True):
-            e = _clean_email(email)
-            p = password  # keep exact
+            e = _clean_email(st.session_state.get("login_email", ""))
+            p = st.session_state.get("login_password", "")
             if not e or not p:
                 st.error("Please enter both email and password.")
             elif "@" not in e or "." not in e.split("@")[-1]:
@@ -262,13 +249,12 @@ if st.session_state.user is None:
                         "refreshToken": user["refreshToken"],
                         "email": e,
                     }
-                    _persist_user_to_browser(st.session_state.user)  # no-op in fallback mode
-                    # Schedule clearing inputs on the next run to avoid widget-key mutation error
+                    _persist_user_to_browser(st.session_state.user)
                     st.session_state.clear_login_inputs = True
                     st.rerun()
                 except Exception as ex:
-                    # Show raw Firebase error so we can see INVALID_EMAIL / MISSING_PASSWORD etc.
                     st.error("❌ " + str(ex))
+
 
 
     elif mode == "Register":
@@ -310,14 +296,17 @@ if st.session_state.user is None:
 
 # ------------------------- Authenticated -------------------------
 # Account bar: "Logged in: email" (no parentheses) + wide Logout button
-
 def render_account_bar(email: str | None):
-    ts = datetime.now().strftime("%H%M%S%f")
-    st.markdown(
-        f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div>
-            <a class="logout-link" href="?logout=1&t={ts}">Logout</a></div>''',
-        unsafe_allow_html=True
-    )
+    c1, c2 = st.columns([0.7, 0.3])
+    with c1:
+        st.markdown(
+            f"<div class='account-row'><div class='email'>Logged in: {email or '—'}</div></div>",
+            unsafe_allow_html=True
+        )
+    with c2:
+        st.button("Logout", key="logout_btn", on_click=_force_logout, use_container_width=True)
+
+
 
 
 
