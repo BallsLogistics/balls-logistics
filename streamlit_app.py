@@ -79,14 +79,28 @@ st.markdown(
 st.markdown(
     """
     <style>
-      .account-row { display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin:.25rem 0 .35rem 0; }
-      .account-row .email { font-size:.95rem; font-weight:500; overflow-wrap:anywhere; }
-      .account-row .logout-link { display:inline-flex; align-items:center; padding:.35rem .6rem; border:1px solid #e5e7eb; border-radius:10px; text-decoration:none; }
-      @media (prefers-color-scheme: dark){ .account-row .logout-link { border-color:#374151; color:#e5e7eb; } }
+      .account-row{
+        display:flex; align-items:center; justify-content:space-between;
+        gap:.5rem; margin:.25rem 0 .35rem 0; overflow:hidden;
+      }
+      /* make email take remaining space, no scroll, ellipsis */
+      .account-row .email{
+        flex:1; min-width:0;
+        font-size:.95rem; font-weight:500;
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      }
+      .account-row .logout-link{
+        flex:0 0 auto; display:inline-flex; align-items:center;
+        padding:.35rem .6rem; border:1px solid #e5e7eb; border-radius:10px; text-decoration:none;
+      }
+      @media (prefers-color-scheme: dark){
+        .account-row .logout-link{ border-color:#374151; color:#e5e7eb; }
+      }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 # ------------------------- Secrets Check -------------------------
 if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID", "cookie_password"]):
@@ -316,8 +330,8 @@ def render_account_bar(email: str | None):
 
 
 
-if st.session_state.get("allow_cookie_fallback"):
-    st.caption("Cookie fallback: you'll stay signed in until you close this tab.")
+#if st.session_state.get("allow_cookie_fallback"):
+#   st.caption("Cookie fallback: you'll stay signed in until you close this tab.")
 
 
 # ------------------------- Session Init -------------------------
