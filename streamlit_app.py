@@ -223,24 +223,53 @@ if st.session_state.user is None:
     )
 
     if mode == "Login":
+        # Clear inputs safely on the run *before* widgets are created
+        if st.session_state.get("clear_login_inputs"):
+            st.session_state.pop("login_email", None)
+            st.session_state.pop("login_password", None)
+            st.session_state.clear_login_inputs = False
 
-        with st.form("login_form", border=False):
-            email = st.text_input("Email")
-            password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Login", use_container_width=True)
-        if submitted:
-            try:
-                user = auth.sign_in_with_email_and_password(email, password)
-                st.session_state.user = {
-                    "localId": user["localId"],
-                    "idToken": user["idToken"],
-                    "refreshToken": user["refreshToken"],
-                    "email": email,
-                }
-                _persist_user_to_browser(st.session_state.user)
-                rerun()
-            except Exception as e:
-                st.error("❌ " + str(e))
+
+        # iOS/Keychain can insert NBSP & zero-width chars; strip those
+        def _clean_email(s: str) -> str:
+            if s is None:
+                return ""
+            return (
+                s.replace("\u00a0", " ")  # NBSP
+                .replace("\u200b", "")  # zero-width space
+                .replace("\u200d", "")  # zero-width joiner
+                .strip()
+            )
+
+
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Password", type="password", key="login_password")
+
+        # Always enabled (prevents Safari hover/disabled weirdness)
+        if st.button("Login", use_container_width=True):
+            e = _clean_email(email)
+            p = password  # keep exact
+            if not e or not p:
+                st.error("Please enter both email and password.")
+            elif "@" not in e or "." not in e.split("@")[-1]:
+                st.error("Please enter a valid email address.")
+            else:
+                try:
+                    user = auth.sign_in_with_email_and_password(e, p)
+                    st.session_state.user = {
+                        "localId": user["localId"],
+                        "idToken": user["idToken"],
+                        "refreshToken": user["refreshToken"],
+                        "email": e,
+                    }
+                    _persist_user_to_browser(st.session_state.user)  # no-op in fallback mode
+                    # Schedule clearing inputs on the next run to avoid widget-key mutation error
+                    st.session_state.clear_login_inputs = True
+                    st.rerun()
+                except Exception as ex:
+                    # Show raw Firebase error so we can see INVALID_EMAIL / MISSING_PASSWORD etc.
+                    st.error("❌ " + str(ex))
+
 
     elif mode == "Register":
         with st.form("register_form", border=False):
