@@ -167,14 +167,35 @@ def _forget_persisted_user_in_browser():
 qs = st.query_params
 
 
+# ------------------------- Auth -------------------------
+
 def _force_logout():
+    # wipe in-memory user
     st.session_state.user = None
+
+    # drop browser cookie if it exists
     try:
         _forget_persisted_user_in_browser()
     except Exception:
         pass
-    st.success("Logged out.")
-    rerun()
+
+    # (optional) safer defaults for Safari/iOS
+    st.session_state.allow_cookie_fallback = True
+    for k in ("auth_mode", "login_form", "register_form", "reset_form"):
+        st.session_state.pop(k, None)
+
+    # 🔑 critical: remove ?logout=1 (and all other params) before rerun
+    try:
+        st.query_params.clear()              # Streamlit ≥1.33
+    except Exception:
+        st.experimental_set_query_params()   # fallback for older versions
+
+    st.rerun()
+
+# handle logout ASAP using the live query params (do NOT cache them)
+if "logout" in st.query_params:
+    _force_logout()
+
 
 
 if "logout" in qs:
@@ -270,9 +291,13 @@ if st.session_state.user is None:
 # Account bar: "Logged in: email" (no parentheses) + wide Logout button
 
 def render_account_bar(email: str | None):
+    ts = datetime.now().strftime("%H%M%S%f")
     st.markdown(
-        f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div><a class="logout-link" href="?logout=1">Logout</a></div>''',
-        unsafe_allow_html=True)
+        f'''<div class="account-row"><div class="email">Logged in: {email or "—"}</div>
+            <a class="logout-link" href="?logout=1&t={ts}">Logout</a></div>''',
+        unsafe_allow_html=True
+    )
+
 
 
 if st.session_state.get("allow_cookie_fallback"):
