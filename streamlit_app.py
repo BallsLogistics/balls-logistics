@@ -778,7 +778,7 @@ elif page == "expenses":
             description = st.text_input("Description", key=f"new_expense_description_{st.session_state.exp_reset}",
                                         placeholder="")
         with c2:
-            amount_str = st.text_input("Amount $", key=f"new_expense_amount_str_{st.session_state.exp_reset}",
+            amount_str = st.text_input("Cost $", key=f"new_expense_amount_str_{st.session_state.exp_reset}",
                                        placeholder="")
         # parse & validate like Fuel page
         amount = _to_float(amount_str)
@@ -809,7 +809,7 @@ elif page == "expenses":
             new_type = st.selectbox("Type", options,
                                     index=options.index(exp.get("type", "Other")) if exp.get("type") in options else 0)
             new_desc = st.text_input("Description", value=exp.get("description", ""))
-            new_amt = st.number_input("Amount $", min_value=0.0, step=0.01, value=float(exp.get("amount", 0.0)))
+            new_amt = st.number_input("Cost $", min_value=0.0, step=0.01, value=float(exp.get("amount", 0.0)))
             c1, c2 = st.columns(2, gap="small")
             with c1:
                 if st.button("💾 Save", use_container_width=True):
@@ -1319,7 +1319,7 @@ elif page == "log":
                         "type") in opts else 0, key=f"log_edit_type_{i}")
                     new_desc = st.text_input("Description", value=entry.get("description", ""),
                                              key=f"log_edit_desc_{i}")
-                    new_amt = st.number_input("Amount $", min_value=0.0, step=0.01,
+                    new_amt = st.number_input("Cost $", min_value=0.0, step=0.01,
                                               value=float(entry.get("amount", 0.0)), key=f"log_edit_amt_{i}")
                     cc1, cc2 = st.columns(2)
                     with cc1:
