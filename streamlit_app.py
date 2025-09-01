@@ -216,25 +216,34 @@ def _force_logout():
     st.session_state.user = None
     try: _forget_persisted_user_in_browser()
     except Exception: pass
-    # ensure next run behaves like a clean first load
     st.session_state.allow_cookie_fallback = True
-    for k in ("auth_mode", "login_form", "register_form", "reset_form",
-              "initialized"):   # <-- add this
+    for k in ("auth_mode", "login_form", "register_form", "reset_form", "initialized"):
         st.session_state.pop(k, None)
+    # prevent immediate re-logout if URL still has ?logout=1
+    st.session_state.ignore_logout_once = True
     rerun(clear=True)
 
 
-# >>> ADD THIS RIGHT BELOW <<<
+
+# ---- logout loop guard ----
+if "ignore_logout_once" not in st.session_state:
+    st.session_state.ignore_logout_once = False
 def _should_logout():
+    # do not auto-logout again on the immediate next run
+    if st.session_state.get("ignore_logout_once"):
+        return False
     try:
-        # Streamlit ≥ 1.33
         return st.query_params.get("logout") == "1"
     except Exception:
-        # Older Streamlit
         return (st.experimental_get_query_params().get("logout", ["0"])[0] == "1")
 
 if _should_logout():
     _force_logout()
+else:
+    # if we previously ignored once, re-arm for the future
+    if st.session_state.get("ignore_logout_once"):
+        st.session_state.ignore_logout_once = False
+
 
 APP_KEYS = [
     "baseline", "last_mileage", "total_miles", "total_cost", "total_gallons",
