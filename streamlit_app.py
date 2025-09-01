@@ -122,20 +122,14 @@ if not all(k in st.secrets for k in ["FIREBASE_API_KEY", "FIREBASE_APP_ID", "coo
 
 # ------------------------- Rerun Helper -------------------------
 
-def rerun(clear=False):
-    # Silent rerun: tweak a QP and stop this run (no Streamlit banner)
-    nonce = datetime.now().strftime("%H%M%S%f")
-    try:
-        if clear:
-            st.query_params.clear()  # wipe current params (e.g., after logout)
-        st.query_params.update({"_r": nonce})
-    except Exception:
-        # Older Streamlit fallback
-        if clear:
-            st.experimental_set_query_params(_r=nonce)
-        else:
-            st.experimental_set_query_params(_r=nonce)
-    st.stop()
+def rerun(clear: bool = False):
+    if clear:
+        try:
+            st.query_params.clear()
+        except Exception:
+            st.experimental_set_query_params()
+    st.rerun()
+
 
 
 def _set_qp(**kwargs):
@@ -222,10 +216,13 @@ def _force_logout():
     st.session_state.user = None
     try: _forget_persisted_user_in_browser()
     except Exception: pass
+    # ensure next run behaves like a clean first load
     st.session_state.allow_cookie_fallback = True
-    for k in ("auth_mode", "login_form", "register_form", "reset_form"):
+    for k in ("auth_mode", "login_form", "register_form", "reset_form",
+              "initialized"):   # <-- add this
         st.session_state.pop(k, None)
     rerun(clear=True)
+
 
 # >>> ADD THIS RIGHT BELOW <<<
 def _should_logout():
@@ -238,6 +235,41 @@ def _should_logout():
 
 if _should_logout():
     _force_logout()
+
+APP_KEYS = [
+    "baseline", "last_mileage", "total_miles", "total_cost", "total_gallons",
+    "last_trip_summary", "log", "expenses", "earnings"
+]
+
+def save_data():
+    uid = st.session_state.user['localId']
+    token = st.session_state.user['idToken']
+    data = {k: st.session_state.get(k) for k in APP_KEYS}
+    db.child("users").child(uid).child("app").set(data, token)
+
+def load_data():
+    uid = st.session_state.user['localId']
+    token = st.session_state.user['idToken']
+    try:
+        data = db.child("users").child(uid).child("app").get(token).val()
+
+        # Fallback: load legacy (old location) and migrate
+        if not data:
+            legacy = db.child("users").child(uid).get(token).val() or {}
+            legacy_app = {k: legacy.get(k) for k in APP_KEYS if k in legacy}
+            if legacy_app:
+                data = legacy_app
+                # migrate to /app
+                try:
+                    db.child("users").child(uid).child("app").set(data, token)
+                except Exception:
+                    pass
+
+        if data:
+            for k, v in data.items():
+                st.session_state[k] = v
+    except Exception:
+        pass
 
 
 
@@ -259,6 +291,7 @@ if st.session_state.user is None:
             }
             _persist_user_to_browser(st.session_state.user)
             ensure_user_profile()
+            load_data()
             rerun()
         except Exception:
             _forget_persisted_user_in_browser()
@@ -312,6 +345,7 @@ if st.session_state.user is None:
                     # Optional: clear the inputs next run so they don't stay filled
                     st.session_state.pop("login_email", None)
                     st.session_state.pop("login_password", None)
+                    load_data()
                     rerun()
                 except Exception as ex:
                     st.error("❌ " + str(ex))
@@ -340,6 +374,7 @@ if st.session_state.user is None:
                     }
                     _persist_user_to_browser(st.session_state.user)
                     ensure_user_profile()
+                    load_data()
                     rerun()
                 except Exception as e:
                     st.error("❌ " + str(e))
@@ -421,27 +456,6 @@ def _to_float(s: str):
     except Exception:
         return None
 
-
-def save_data():
-    uid = st.session_state.user['localId']
-    token = st.session_state.user['idToken']
-    data = {k: st.session_state[k] for k in [
-        "baseline", "last_mileage", "total_miles", "total_cost", "total_gallons",
-        "last_trip_summary", "log", "expenses", "earnings"
-    ]}
-    # write under /users/$uid/app to avoid tripping parent .validate
-    db.child("users").child(uid).child("app").set(data, token)
-
-def load_data():
-    uid = st.session_state.user['localId']
-    token = st.session_state.user['idToken']
-    try:
-        data = db.child("users").child(uid).child("app").get(token).val()
-        if data:
-            for k, v in data.items():
-                st.session_state[k] = v
-    except Exception:
-        pass
 
 
 
