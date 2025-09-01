@@ -211,16 +211,38 @@ def ensure_user_profile():
         # non-fatal; app will still run, and we'll try again later
         pass
 
+APP_KEYS = [
+    "baseline", "last_mileage", "total_miles", "total_cost", "total_gallons",
+    "last_trip_summary", "log", "expenses", "earnings"
+]
+# --- App-state clearing (prevents cross-user data bleed) ---
+APP_STATE_KEYS = set([
+    # persisted data
+    "baseline","last_mileage","total_miles","total_cost","total_gallons",
+    "last_trip_summary","log","expenses","earnings","pending_changes",
+    # ui/ephemeral
+    "income_chart_end_idx","trip_reset","exp_reset","earn_reset",
+    "edit_expense_index","mileage","gallons","fuel_cost",
+    "log_edit_expense_index","page","initialized",
+    "nav_page_sel",       # left nav selection cache
+    "reset_requested",    # confirmation state on Settings page
+])
+
+def _clear_app_state():
+    # remove all app-related keys; init_session will recreate defaults
+    for k in list(APP_STATE_KEYS):
+        st.session_state.pop(k, None)
+
 
 def _force_logout():
+    _clear_app_state()  # <<< wipe app data first
     st.session_state.user = None
     try: _forget_persisted_user_in_browser()
     except Exception: pass
-    for k in ("auth_mode", "login_form", "register_form", "reset_form", "initialized"):
-        st.session_state.pop(k, None)
     # prevent immediate re-logout if URL still has ?logout=1
     st.session_state.ignore_logout_once = True
     rerun(clear=True)
+
 
 
 
@@ -244,10 +266,6 @@ else:
         st.session_state.ignore_logout_once = False
 
 
-APP_KEYS = [
-    "baseline", "last_mileage", "total_miles", "total_cost", "total_gallons",
-    "last_trip_summary", "log", "expenses", "earnings"
-]
 
 def save_data():
     uid = st.session_state.user['localId']
@@ -311,6 +329,7 @@ if st.session_state.user is None:
             }
             _persist_user_to_browser(st.session_state.user)
             ensure_user_profile()
+            _clear_app_state()
             load_data()
             rerun()
         except Exception:
@@ -336,6 +355,17 @@ if st.session_state.user is None:
                     .strip())
 
 
+        def _clean_secret(s: str | None) -> str:
+            s = (s or "")
+            return (s
+                    .replace("\u00a0", " ")  # NBSP
+                    .replace("\u200b", "")  # zero-width space
+                    .replace("\u200d", "")  # zero-width joiner
+                    .replace("\ufeff", "")  # BOM
+                    .strip()
+                    )
+
+
         # --- FORM ensures iOS/Safari commits the inputs before we read them ---
         with st.form("login_form", border=False, clear_on_submit=False):
             st.text_input("Email", key="login_email")
@@ -345,7 +375,7 @@ if st.session_state.user is None:
         if submitted:
             # Read from session_state (more reliable than local vars on iOS)
             e = _clean_email(st.session_state.get("login_email", ""))
-            p = st.session_state.get("login_password", "")
+            p = _clean_secret(st.session_state.get("login_password", ""))
 
             if not e or not p:
                 st.error("Please enter both email and password.")
@@ -354,6 +384,7 @@ if st.session_state.user is None:
             else:
                 try:
                     user = auth.sign_in_with_email_and_password(e, p)
+                    _clear_app_state()  # <<< important: new session, blank app state
                     st.session_state.user = {
                         "localId": user["localId"],
                         "idToken": user["idToken"],
@@ -368,7 +399,11 @@ if st.session_state.user is None:
                     load_data()
                     rerun()
                 except Exception as ex:
-                    st.error("❌ " + str(ex))
+                    msg = str(ex)
+                    if "INVALID_LOGIN_CREDENTIALS" in msg:
+                        st.error("Wrong email or password.")
+                    else:
+                        st.error("❌ " + msg)
 
 
 
@@ -386,6 +421,7 @@ if st.session_state.user is None:
                 try:
                     auth.create_user_with_email_and_password(email, password)
                     user = auth.sign_in_with_email_and_password(email, password)
+                    _clear_app_state()  # <<< important: new session, blank app state
                     st.session_state.user = {
                         "localId": user["localId"],
                         "idToken": user["idToken"],
