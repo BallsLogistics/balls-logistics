@@ -216,7 +216,6 @@ def _force_logout():
     st.session_state.user = None
     try: _forget_persisted_user_in_browser()
     except Exception: pass
-    st.session_state.allow_cookie_fallback = True
     for k in ("auth_mode", "login_form", "register_form", "reset_form", "initialized"):
         st.session_state.pop(k, None)
     # prevent immediate re-logout if URL still has ?logout=1
@@ -285,6 +284,18 @@ def load_data():
 
 if "user" not in st.session_state:
     st.session_state.user = None
+
+# --- Cross-tab sign-out guard ---
+# If this tab still has a user in memory but the shared auth cookie disappeared,
+# it means another tab logged out. End this tab's session too.
+if st.session_state.user and not st.session_state.get("allow_cookie_fallback", False):
+    try:
+        raw = cookies.get(COOKIE_KEY) if cookies is not None else None
+    except Exception:
+        raw = None
+    if not raw:
+        _force_logout()
+
 
 # Restore persisted session
 if st.session_state.user is None:
@@ -403,16 +414,13 @@ if st.session_state.user is None:
 
 # ------------------------- Authenticated -------------------------
 def render_account_bar(email: str | None):
-    ts = datetime.now().strftime("%H%M%S%f")
-    st.markdown(
-        f"""
-        <div class="account-row">
-          <div class="email"><span class="email-text">Logged in: {email or "—"}</span></div>
-          <a class="logout-link" href="?logout=1&t={ts}">Logout</a>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    col_email, col_btn = st.columns([1, 0.3])
+    with col_email:
+        st.markdown(f'<div class="email"><span class="email-text">Logged in: {email or "—"}</span></div>', unsafe_allow_html=True)
+    with col_btn:
+        if st.button("Logout", use_container_width=True, key="logout_btn"):
+            _force_logout()
+
 
 
 
