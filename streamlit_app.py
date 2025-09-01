@@ -17,7 +17,6 @@ st.set_page_config(
 )
 # Now it's safe to import things that might use st.*
 from firebase_config import get_firebase_clients     # <-- changed
-from streamlit_cookies_manager import EncryptedCookieManager
 
 # Initialize Firebase clients after page_config is set
 firebase_app, auth, db = get_firebase_clients()
@@ -203,6 +202,21 @@ def _forget_persisted_user_in_browser():
 
 
 # ------------------------- Auth -------------------------
+def ensure_user_profile():
+    uid = st.session_state.user.get("localId")
+    token = st.session_state.user.get("idToken")
+    email = (st.session_state.user.get("email") or "").strip()
+    display = (email.split("@")[0] if email else "User")[:100]
+    try:
+        # Only touches the top-level profile keys; app data is under /app
+        db.child("users").child(uid).update(
+            {"displayName": display, "email": email},
+            token
+        )
+    except Exception:
+        # non-fatal; app will still run, and we'll try again later
+        pass
+
 
 def _force_logout():
     st.session_state.user = None
@@ -211,7 +225,20 @@ def _force_logout():
     st.session_state.allow_cookie_fallback = True
     for k in ("auth_mode", "login_form", "register_form", "reset_form"):
         st.session_state.pop(k, None)
-    rerun(clear=True)   # 👈 silent rerun, no banner
+    rerun(clear=True)
+
+# >>> ADD THIS RIGHT BELOW <<<
+def _should_logout():
+    try:
+        # Streamlit ≥ 1.33
+        return st.query_params.get("logout") == "1"
+    except Exception:
+        # Older Streamlit
+        return (st.experimental_get_query_params().get("logout", ["0"])[0] == "1")
+
+if _should_logout():
+    _force_logout()
+
 
 
 
@@ -231,6 +258,8 @@ if st.session_state.user is None:
                 "email": persisted.get("email"),
             }
             _persist_user_to_browser(st.session_state.user)
+            ensure_user_profile()
+            rerun()
         except Exception:
             _forget_persisted_user_in_browser()
 
@@ -279,10 +308,11 @@ if st.session_state.user is None:
                         "email": e,
                     }
                     _persist_user_to_browser(st.session_state.user)  # no-op in fallback mode
+                    ensure_user_profile()
                     # Optional: clear the inputs next run so they don't stay filled
                     st.session_state.pop("login_email", None)
                     st.session_state.pop("login_password", None)
-                    st.rerun()
+                    rerun()
                 except Exception as ex:
                     st.error("❌ " + str(ex))
 
@@ -309,6 +339,7 @@ if st.session_state.user is None:
                         "email": email,
                     }
                     _persist_user_to_browser(st.session_state.user)
+                    ensure_user_profile()
                     rerun()
                 except Exception as e:
                     st.error("❌ " + str(e))
@@ -393,22 +424,25 @@ def _to_float(s: str):
 
 def save_data():
     uid = st.session_state.user['localId']
+    token = st.session_state.user['idToken']
     data = {k: st.session_state[k] for k in [
         "baseline", "last_mileage", "total_miles", "total_cost", "total_gallons",
         "last_trip_summary", "log", "expenses", "earnings"
     ]}
-    db.child("users").child(uid).set(data, st.session_state.user['idToken'])
-
+    # write under /users/$uid/app to avoid tripping parent .validate
+    db.child("users").child(uid).child("app").set(data, token)
 
 def load_data():
     uid = st.session_state.user['localId']
+    token = st.session_state.user['idToken']
     try:
-        data = db.child("users").child(uid).get(st.session_state.user['idToken']).val()
+        data = db.child("users").child(uid).child("app").get(token).val()
         if data:
             for k, v in data.items():
                 st.session_state[k] = v
     except Exception:
         pass
+
 
 
 if "initialized" not in st.session_state:
@@ -1288,7 +1322,7 @@ elif page == "settings":
                 # remove data from Firebase (best-effort)
                 if uid and token:
                     try:
-                        db.child("users").child(uid).remove(token)
+                        db.child("users").child(uid).child("app").remove(token)
                     except Exception:
                         pass
                 # reset in-memory state to defaults (preserve auth)
