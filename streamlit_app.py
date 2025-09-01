@@ -450,16 +450,16 @@ if st.session_state.user is None:
 
 # ------------------------- Authenticated -------------------------
 def render_account_bar(email: str | None):
-    col_email, col_btn = st.columns([1, 0.3])
-    with col_email:
-        st.markdown(f'<div class="email"><span class="email-text">Logged in: {email or "—"}</span></div>', unsafe_allow_html=True)
-    with col_btn:
-        if st.button("Logout", use_container_width=True, key="logout_btn"):
-            _force_logout()
-
-
-
-
+    ts = datetime.now().strftime("%H%M%S%f")
+    st.markdown(
+        f"""
+        <div class="account-row">
+          <div class="email"><span class="email-text">Logged in: {email or "—"}</span></div>
+          <a class="logout-link" href="?logout=1&t={ts}">Logout</a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 
